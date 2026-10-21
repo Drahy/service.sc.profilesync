@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+  <category label="Private profile synchronization">
+    <setting id="enabled" label="Synchronize preferences and viewing history" type="bool" default="true" />
+    <setting label="Synchronize now" type="action" action="RunScript(service.sc.profilesync)" option="close" />
+    <setting label="Uses the existing Stream Cinema Kra account. Hardware and account settings stay local." type="lsep" />
+  </category>
+</settings>

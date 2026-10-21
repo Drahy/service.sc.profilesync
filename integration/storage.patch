@@ -1,0 +1,62 @@
+--- storage.py
++++ storage.py
+@@ -14,6 +14,8 @@
+ 
+ import xbmcvfs
+ from xbmcgui import Window
++
++from resources.lib.common import profile_sync
+ 
+ checked = False
+ _storage_cache = {}
+@@ -252,6 +254,7 @@
+         self.save()
+ 
+     def __getitem__(self, item):
++        profile_sync.read_refresh(self, _storage_cache)
+         return self._data.get(item)
+ 
+     def __delitem__(self, key):
+@@ -260,6 +263,7 @@
+         self.save()
+ 
+     def get(self, name):
++        profile_sync.read_refresh(self, _storage_cache)
+         if name in self._data:
+             return self._data[name]
+         return None
+@@ -270,6 +274,8 @@
+         self.save()
+ 
+     def save(self):
++        if profile_sync.save(self, _storage_cache):
++            return
+         # if self._data == self._last_saved:
+         #     debug('stare aj nove data su rovnake, neupdatujem {}'.format(self._name))
+         #     return
+@@ -278,10 +284,12 @@
+         _storage_cache[self._name] = self._data
+ 
+     def load(self, force=False):
++        force = profile_sync.force_reload(self, force)
+         # debug('name {}'.format(self._name))
+         if force is False and self._name in _storage_cache:
+             self._data = _storage_cache.get(self._name)
+             self._last_saved = self._data
++            profile_sync.remember(self)
+             return
+         # debug('storage cache: {}'.format(_storage_cache))
+         try:
+@@ -292,10 +300,12 @@
+             self._data = {}
+         _storage_cache[self._name] = self._data
+         self._last_saved = self._data
++        profile_sync.remember(self)
+         # debug('loaded data {}'.format(self._data))
+ 
+     @property
+     def data(self):
++        profile_sync.read_refresh(self, _storage_cache)
+         return self._data
+ 
+ 

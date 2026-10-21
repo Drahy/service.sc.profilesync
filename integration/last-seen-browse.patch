@@ -1,0 +1,242 @@
+--- a/resources/language/resource.language.cs_cz/strings.po
++++ b/resources/language/resource.language.cs_cz/strings.po
+@@ -930,3 +930,11 @@
+ msgctxt "#30418"
+ msgid "Send this report now?"
+ msgstr "Odeslat toto hlášení nyní?"
++
++msgctxt "#30990"
++msgid "All seasons"
++msgstr "Všechny řady"
++
++msgctxt "#30991"
++msgid "Last seen"
++msgstr "Poslední sledované"
+--- a/resources/language/resource.language.en_gb/strings.po
++++ b/resources/language/resource.language.en_gb/strings.po
+@@ -928,3 +928,11 @@
+ msgctxt "#30418"
+ msgid "Send this report now?"
+ msgstr "Send this report now?"
++
++msgctxt "#30990"
++msgid "All seasons"
++msgstr "All seasons"
++
++msgctxt "#30991"
++msgid "Last seen"
++msgstr "Last seen"
+--- a/resources/language/resource.language.sk_sk/strings.po
++++ b/resources/language/resource.language.sk_sk/strings.po
+@@ -929,3 +929,11 @@
+ msgctxt "#30418"
+ msgid "Send this report now?"
+ msgstr "Odoslať toto hlásenie teraz?"
++
++msgctxt "#30990"
++msgid "All seasons"
++msgstr "Všetky série"
++
++msgctxt "#30991"
++msgid "Last seen"
++msgstr "Posledné sledované"
+--- a/resources/lib/gui/item.py
++++ b/resources/lib/gui/item.py
+@@ -333,6 +333,12 @@
+ 
+     def make_ctx(self):
+         context_menu = []
++
++        if self.data.get('resume_seasons'):
++            all_seasons = dict(self.data)
++            all_seasons['url'] = all_seasons.pop('resume_seasons')
++            all_seasons.pop('resume_episode', None)
++            context_menu.append((Strings.txt(30990), 'Container.Update({})'.format(create_plugin_url(all_seasons))))
+ 
+         if 'listType' in params.args:
+             context_menu.append([Strings.txt(Strings.CONTEXT_REMOVE), 'RunPlugin({})'.format(create_plugin_url({
+--- a/resources/lib/kodiutils.py
++++ b/resources/lib/kodiutils.py
+@@ -455,7 +455,7 @@
+             "force", "search-list", "search", "csearch", "search-remove",
+             "search-edit", "tl", "id", "subtype", "title", "name", "imdb",
+             "tvdb", "csfd", "trakt", "content", "tu", "page", "list", "selectStream",
+-            "filter_params"
++            "filter_params", "resume_episode"
+         ]:
+             continue
+ 
+--- a/resources/lib/services/navigation.py
++++ b/resources/lib/services/navigation.py
+@@ -13,6 +13,7 @@
+ 
+ from resources.lib.constants import ADDON, ADDON_ID
+ from resources.lib.common.logger import debug
++from resources.lib.common import resume_browse
+ 
+ 
+ RESTORE_PARAMETER = 'navigation_restore'
+@@ -68,9 +69,13 @@
+     canonical = canonical_uri(uri)
+     if not canonical:
+         return ''
+-    route = route_args(canonical).get('url', '')
++    args = route_args(canonical)
++    route = args.get('url', '')
+     if re.fullmatch(r'/Play/\d+(?:/\d+/\d+)?', route):
+         return route
++    alias = re.fullmatch(r'/Play/[A-Za-z0-9_-]+(/\d+/\d+)?', route)
++    if alias and str(args.get('id', '')).isdigit():
++        return '/Play/' + str(args['id']) + (alias.group(1) or '')
+     return canonical
+ 
+ 
+@@ -102,6 +107,9 @@
+                 state = json.load(source)
+             if (isinstance(state, dict) and state.get('version') == 1
+                     and isinstance(state.get('session'), dict) and isinstance(state.get('checkpoint'), dict)):
++                old_item = state['checkpoint'].get('item', '')
++                if isinstance(old_item, str) and old_item.startswith('plugin://'):
++                    state['checkpoint']['item'] = item_key(old_item)
+                 return state
+         except (OSError, ValueError, TypeError):
+             pass
+@@ -187,6 +195,44 @@
+         self.state['session']['restoring'] = False
+         self._save()
+ 
++    def focus_requested(self):
++        home = xbmcgui.Window(10000)
++        raw = home.getProperty(resume_browse.FOCUS_PROPERTY)
++        if not raw:
++            return False
++        try:
++            request = json.loads(raw)
++            expected = resume_browse.focus_request(request['route'], request['item'].rsplit('/', 1)[-1])
++            if (not expected or expected['item'] != request['item']
++                    or float(request['expires']) < time.time() or self.player.isPlayback()):
++                home.clearProperty(resume_browse.FOCUS_PROPERTY)
++                return False
++        except (ValueError, TypeError, KeyError, AttributeError):
++            home.clearProperty(resume_browse.FOCUS_PROPERTY)
++            return False
++        if xbmcgui.getCurrentWindowId() != VIDEO_WINDOW or xbmc.getCondVisibility('Container.IsUpdating'):
++            return False
++        current = safe_folder(xbmc.getInfoLabel('Container.FolderPath'))
++        if urlsplit(route_args(current).get('url', '')).path != expected['route']:
++            return False
++        window = xbmcgui.Window(VIDEO_WINDOW)
++        identifier, control = self._list_control(window)
++        if control is None:
++            return False
++        count = (xbmc.getInfoLabel('Container(%s).NumAllItems' % identifier)
++                 or xbmc.getInfoLabel('Container(%s).NumItems' % identifier))
++        if not count or int(count) == 0:
++            return False
++        for index in range(int(count) + 1):
++            uri = xbmc.getInfoLabel('Container(%s).ListItemAbsolute(%s).FileNameAndPath' % (identifier, index))
++            if item_key(uri) == expected['item']:
++                window.setFocusId(identifier)
++                control.selectItem(index)
++                home.clearProperty(resume_browse.FOCUS_PROPERTY)
++                return True
++        home.clearProperty(resume_browse.FOCUS_PROPERTY)
++        return False
++
+     def restore(self):
+         now = time.monotonic()
+         if now - self.started < self.START_DELAY:
+@@ -244,7 +290,9 @@
+     def run(self):
+         while not self.monitor.abortRequested():
+             try:
+-                if self.pending:
++                if self.focus_requested():
++                    pass
++                elif self.pending:
+                     self.restore()
+                 else:
+                     self.capture()
+--- a/resources/lib/streamcinema.py
++++ b/resources/lib/streamcinema.py
+@@ -3,6 +3,7 @@
+ from __future__ import print_function, unicode_literals
+ 
+ import traceback
++from requests import HTTPError
+ 
+ import xbmcgui
+ import xbmcplugin
+@@ -23,6 +24,7 @@
+ from resources.lib.gui.dialog import dok, dinput, dselect, dyesno
+ from resources.lib.gui.item import SCItem, get_history_item_name, list_hp, SCLDir, SCUpNext, UserCancelledException
+ from resources.lib.common.storage import Storage, KodiViewModeDb, preferred_lang_list
++from resources.lib.common import resume_browse
+ from resources.lib.language import Strings
+ from resources.lib.params import params
+ from resources.lib.services.next_episodes import NextEp
+@@ -370,8 +372,21 @@
+         st = List(lid)
+         if len(st.get()) > 0:
+             self.url = '/Last'
+-            self.payload = {"ids": dumps(st.get())}
+-            self.call_url_and_response()
++            def load_history_detail(route):
++                try:
++                    return Sc.get(route)
++                except HTTPError as error:
++                    if error.response is not None and error.response.status_code == 404:
++                        return {}
++                    raise
++            try:
++                self.response = resume_browse.history_response(
++                    st.get(), load_history_detail, lid, ADDON.getLocalizedString(30991),
++                    ADDON.getLocalizedString(30312), page=int(self.args.get('page', '0')))
++            except Exception:
++                debug('History metadata unavailable: {}'.format(traceback.format_exc()))
++                self.response = {}
++            self.parse_response()
+         else:
+             if SC.ITEM_WIDGET not in self.args:
+                 dok(Strings.txt(Strings.EMPTY_HISTORY_H1), Strings.txt(Strings.EMPTY_HISTORY_L1))
+@@ -1067,6 +1082,12 @@
+ 
+         # Cache MISS alebo POST request → volaj API normálne
+         self.call_url()
++        if self.args.get('resume_episode') and not self.response.get(SC.ITEM_MENU):
++            fallback = resume_browse.all_seasons(self.url)
++            if fallback:
++                self.url = fallback
++                self.args.pop('resume_episode', None)
++                self.call_url()
+         self.parse_response()
+ 
+     def call_url(self):
+@@ -1342,6 +1363,8 @@
+         dynamic_pinned = []  # Dynamicky pripnuté položky z menu (cez action_pin)
+ 
+         for i in self.response.get(SC.ITEM_MENU):
++            if self.url == '/Last':
++                i = resume_browse.last_seen_item(i, lambda show: SCKODIItem(int(show)).get('last_ep'))
+             item = SCItem(i)
+ 
+             if item.visible:
+@@ -1575,7 +1598,8 @@
+             debug('Auto-play: last_series={} current={} autoplay_done={}'.format(win_last_series, item_id, autoplay_done))
+ 
+             # AUTO-PLAY logika - spustí sa LEN ak je zapnuté nastavenie
+-            if get_setting_as_bool('stream.autoplay.episode') and self.args.get('navigation_restore') != '1':
++            if (get_setting_as_bool('stream.autoplay.episode')
++                    and self.args.get('navigation_restore') != '1' and not self.args.get('resume_episode')):
+                 stop = home_win.getProperty('{}.stop'.format(ADDON_ID))
+ 
+                 ki = SCKODIItem(int(item_id))
+@@ -1627,6 +1651,8 @@
+             home_win.clearProperty(check_last_key)
+         # upraceme po sebe
+         home_win.clearProperty('{}.stop'.format(ADDON_ID))
++        if self.args.get('resume_episode'):
++            resume_browse.request_focus(self.url, self.args['resume_episode'])
+ 
+     def _extract_filter_params(self, api_filter):
+         """

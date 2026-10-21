@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.0" provider-name="Drahy">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0" />
+    <import addon="script.module.requests" version="2.25.1" />
+    <import addon="plugin.video.stream-cinema" version="2.6.7.1" />
+    <import addon="service.upnext" version="1.2.1" />
+  </requires>
+  <extension point="xbmc.service" library="service.py" />
+  <extension point="xbmc.python.script" library="sync_now.py"><provides>executable</provides></extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Share Stream Cinema preferences and viewing history through private Kra storage.</summary>
+    <description lang="en_GB">Synchronize watched states, resume positions, Last seen, selected addon preferences and Amber appearance. Keep credentials, hardware settings and navigation local. Network operations run in the background.</description>
+    <platform>all</platform>
+    <license>GPL-3.0-only</license>
+    <news>0.1.0: Private cross-device profile and viewing-history synchronization.</news>
+  </extension>
+</addon>

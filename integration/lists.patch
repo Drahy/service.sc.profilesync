@@ -1,0 +1,37 @@
+--- lists.py
++++ lists.py
+@@ -5,6 +5,7 @@
+ 
+ from resources.lib.api.sc import Sc
+ from resources.lib.common.storage import Storage, KodiDb
++from resources.lib.common import profile_sync
+ from resources.lib.common.logger import debug
+ from resources.lib.kodiutils import hexlify
+ 
+@@ -25,6 +26,8 @@
+         self.set(self.data)
+ 
+     def get(self):
++        if profile_sync.tracked(self.name):
++            self.data = self.storage.get('list') or []
+         # debug('List get data {}')
+         return self.data
+ 
+@@ -32,6 +35,8 @@
+         return len(self.data)
+ 
+     def add(self, item, remove_only=False):
++        if profile_sync.tracked(self.name):
++            self.get()
+         # debug('List add {} | {}'.format(item, remove_only))
+ 
+         if item is None:
+@@ -63,6 +68,8 @@
+     def set(self, data):
+         # debug('List set {}'.format(data))
+         self.storage['list'] = data
++        if profile_sync.tracked(self.name):
++            self.data = self.storage.get('list') or []
+ 
+ 
+ class SCKODIItem(Storage):
