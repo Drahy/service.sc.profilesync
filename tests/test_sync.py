@@ -124,6 +124,74 @@ def test_export_excludes_debug_records_and_hardware():
     assert snapshot == {"setting|plugin.video.stream-cinema|stream.lang1": "CZ"}
 
 
+@pytest.mark.parametrize(
+    "key",
+    [
+        "setting|kodi|audiooutput.channels",
+        "setting|kodi|addons.unknownsources",
+        "setting|kodi|subtitles.custompath",
+        "setting|kodi|videoplayer.adjustrefreshrate",
+        "setting|plugin.video.stream-cinema|stream.exclude.hdr",
+        "setting|skin.amber|scprofilesync.internal.settingssaved",
+    ],
+)
+def test_expanded_preferences_keep_hardware_security_and_internal_flags_local(key):
+    assert not valid_key(key)
+
+
+def test_new_common_preferences_cross_devices_without_copying_local_account(tmp_path):
+    backend = Backend()
+    a, _, _ = replica(
+        tmp_path,
+        DEVICE_A,
+        backend,
+        preferences={
+            "kodi": {"locale.language": "resource.language.en_gb", "subtitles.fontsize": 48},
+            "plugin.video.stream-cinema": {"plugin.show.skip.button": "true", "kraska.pass": "device-a"},
+            "service.upnext": {"disableNextUp": "false"},
+            "service.sc.profilesync": {"hide_subtitles_for_czech_audio": "true", "remote_interval": "90"},
+        },
+    )
+    b, _, prefs = replica(
+        tmp_path,
+        DEVICE_B,
+        backend,
+        preferences={
+            "kodi": {"subtitles.fontsize": 42},
+            "plugin.video.stream-cinema": {"kraska.pass": "device-b"},
+        },
+    )
+    a.sync()
+    b.sync()
+    assert prefs["kodi"]["subtitles.fontsize"] == 48
+    assert prefs["service.sc.profilesync"]["remote_interval"] == "90"
+    assert prefs["service.upnext"]["disableNextUp"] == "false"
+    assert prefs["plugin.video.stream-cinema"]["kraska.pass"] == "device-b"
+
+
+def test_failed_native_save_is_retried_before_the_import_is_acknowledged(tmp_path):
+    backend = Backend()
+    a, _, _ = replica(tmp_path, DEVICE_A, backend, preferences={"kodi": {"subtitles.fontsize": 48}})
+    b, _, prefs = replica(tmp_path, DEVICE_B, backend, preferences={"kodi": {"subtitles.fontsize": 42}})
+    a.sync()
+    b.capture()
+    saves = []
+
+    def persist(native):
+        saves.append(native["kodi"]["subtitles.fontsize"])
+        if len(saves) == 1:
+            raise OSError("Disk write failed")
+
+    b.adapter.persist_preferences = persist
+    with pytest.raises(OSError):
+        b.sync()
+    assert b.engine.observed["setting|kodi|subtitles.fontsize"] == 42
+    b.sync()
+    assert prefs["kodi"]["subtitles.fontsize"] == 48
+    assert b.engine.observed["setting|kodi|subtitles.fontsize"] == 48
+    assert saves == [48, 48]
+
+
 def test_seed_preserves_watched_list_only_entries():
     snapshot, _ = export({"all_watched": {"list": ["42/1/2", "99"]}})
     assert snapshot[KEY] == {"position": None, "count": None, "played_at": None, "watched": True}

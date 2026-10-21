@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <addons>
-  <addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.2" provider-name="Drahy">
+  <addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.3" provider-name="Drahy">
     <requires>
       <import addon="xbmc.python" version="3.0.0" />
       <import addon="script.module.requests" version="2.25.1" />
@@ -13,12 +13,12 @@
     </extension>
     <extension point="xbmc.addon.metadata">
       <summary lang="en_GB">Share Stream Cinema preferences and viewing history through private Kra storage.</summary>
-      <description lang="en_GB">Synchronize watched states, resume positions, Last seen, interface sounds, selected addon preferences and Amber appearance. Keep credentials, hardware settings and navigation local. Network operations run in the background.</description>
+      <description lang="en_GB">Synchronize viewing history, language, subtitle appearance, interface sounds, common addon preferences and portable Amber appearance. Save captured core preferences before acknowledging them. Hide subtitles with Czech audio, otherwise prefer Czech then English. Keep credentials, hardware and paths local.</description>
       <platform>all</platform>
       <license>GPL-3.0-only</license>
       <source>https://github.com/Drahy/service.sc.profilesync</source>
       <website>https://github.com/Drahy/service.sc.profilesync</website>
-      <news>0.1.2: Share Kodi interface sound mode and volume while keeping audio hardware local. Restore existing cloud values when an upgrade adds new preferences.</news>
+      <news>0.1.3: Share common interface, regional, subtitle and addon preferences. Persist captured core settings before acknowledging them. Hide subtitles with Czech audio; otherwise prefer Czech, then English. Hardware, credentials and paths stay local.</news>
     </extension>
   </addon>
   <addon id="repository.drahy.scprofilesync" name="Drahy's SC Profile Sync Repository" version="1.0.0" provider-name="Drahy">

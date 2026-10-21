@@ -2,9 +2,9 @@
 
 Share Stream Cinema viewing history and selected preferences through the existing account's **private Kra storage**. Each Kodi device keeps its own database and an offline checkpoint. Devices connect directly to Kra; a notebook or home server does not need to remain on.
 
-The service synchronizes Last seen, watched markers, episode/movie resume positions, the last played episode, per-title language choices, selected Stream Cinema and Up Next preferences, subtitle preferences, interface sound mode/volume and portable Amber appearance settings. Explicit deletions prevent a stale device from restoring a cleared resume position.
+The service synchronizes Last seen, watched markers, episode/movie resume positions, the last played episode, per-title language choices, common Stream Cinema and Up Next preferences, interface/regional preferences, subtitle appearance, interface sound mode/volume and portable Amber appearance settings. Explicit deletions prevent a stale device from restoring a cleared resume position.
 
-Passwords, tokens, cached stream URLs, navigation checkpoints, HDR/decoder settings, audio output, speed tests and network limits stay local. The service uses the account configured in Stream Cinema. It never controls playback. Remote imports wait until playback stops, and network failures leave changes queued locally.
+Passwords, tokens, cached stream URLs, navigation checkpoints, HDR/decoder settings, audio output, speed tests and network limits stay local. The service uses the account configured in Stream Cinema. It never starts, stops or seeks a video. Remote profile imports wait until playback stops, and network failures leave changes queued locally. The optional local subtitle policy runs independently of transfers.
 
 ## Install and update
 
@@ -36,6 +36,22 @@ The SC integration opens a show's last shared season and selects its exact last 
 Every installation creates its own identity. **Do not copy `device.json` or `state.json` between devices.** Existing viewing history is merged; a new installation's untouched preference defaults do not replace the existing cloud profile. Later explicit local edits are versioned normally.
 
 Kodi's interface click/notification sound mode and volume are shared. Audio devices, HDMI output, speaker channels and passthrough stay local. Upgrade SC Profile Sync on every device so each version recognizes the same supported preferences. Newly supported preferences restore an existing cloud value before publishing an untouched local value.
+
+## Shared preferences and crash persistence
+
+Common preferences include Kodi interface/audio languages, regional formats, keyboard layouts, subtitle font/size/style/position, skin theme/font, installed skin/sound/subtitle-service selections, file-list and video-library display options, seeking steps, and global update mode. Stream Cinema genre/menu/Skip options, parental-control choices and startup behavior are shared alongside its existing quality/language preferences. Up Next's activation toggle and the profile service's local/cloud intervals are also shared.
+
+Resource selections apply only when that addon is already installed and enabled; synchronization does not install addons or download language packs. Platform-specific settings unavailable on a device are retained without being written there. Up Next logging/demo mode, the profile service's local pause switch and per-addon update rules remain local. Keep protection for patched addons enabled on each device.
+
+The exact allowlists are in [policy.py](resources/lib/policy.py). Hardware-related stream bitrate/HDR/Dolby Vision/channel filters, display/HDR brightness, security controls, account settings and local paths are excluded. Custom widgets/menus, favourites, keymaps and complete addon installations are separate files rather than supported preference fields; retain their local backups.
+
+Before acknowledging a captured or imported core/Amber preference, the service requests Kodi's native settings save and verifies the captured core values in `guisettings.xml`. Unchanged snapshots do not repeat this save. The internal `scprofilesync.internal.settingssaved` skin flag is always false and is never shared. A failed write leaves the change unacknowledged for retry. The atomic offline checkpoint is flushed separately. This protects completed captures/imports against a forced Kodi process termination; it does not promise recovery from a power failure or a change made before the next local capture.
+
+## Subtitle audio rule
+
+**Hide subtitles with Czech audio** is enabled by default and is itself synchronized. It disables all subtitle tracks, including forced tracks, when the current audio is tagged as Czech. For other audio it selects complete Czech subtitles, falls back to English and hides unsupported-language tracks. Switching audio tracks re-evaluates the choice. An explicit subtitle-off choice is retained for the current non-Czech track until a new playback/audio/stream selection.
+
+Player notifications queue work for a separate local event worker; cloud/network delays do not block it. Three bounded rechecks during the first six seconds cover a provider enabling subtitles after its startup callback. Afterward it reacts to stream events without periodic stream scans. Stop clears pending work, and the service creates no additional player. Audio must have a usable language tag; burned-in captions are part of the image and cannot be disabled.
 
 Kra must allow private-file access for the account. Availability after a subscription expires has not been established. A clean Kodi reinstall still requires the addons, the SC integration and the same Kra login. The cloud restores supported preferences and viewing state. Local artwork, complete skin installations, generated widgets and platform-specific shortcut paths require a separate local backup.
 

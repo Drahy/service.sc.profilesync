@@ -15,9 +15,10 @@ from .adapter import Adapter
 from .engine import Engine
 from .kra import Kra
 from .local import identity, read, write
-from .policy import SC_SETTINGS, NEXT_SETTINGS, KODI_SETTINGS, shared_setting
+from .policy import SC_SETTINGS, NEXT_SETTINGS, KODI_SETTINGS, PROFILE_SETTINGS, shared_setting
 from .worker import Worker
 from .schedule import Schedule
+from .subtitles import SubtitleService
 
 
 def rpc(method, params=None):
@@ -64,15 +65,20 @@ class Runtime:
         self.setting_ids = {}
         self.database = Path(xbmcvfs.translatePath(sc.getAddonInfo("profile"))) / "storage.db"
         self.skin_settings = Path(xbmcvfs.translatePath("special://profile/addon_data/skin.amber/settings.xml"))
+        self.core_settings = Path(xbmcvfs.translatePath("special://profile/guisettings.xml"))
 
     def preferences(self):
         # Kodi reloads only the first registered Addon handle after another script
         # saves settings. New handles read the current file and preserve local edits.
         sc = xbmcaddon.Addon("plugin.video.stream-cinema")
         upnext = xbmcaddon.Addon("service.upnext")
+        profile = xbmcaddon.Addon("service.sc.profilesync")
         result = {
             "plugin.video.stream-cinema": {k: sc.getSetting(k) for k in SC_SETTINGS if k in self.supported(sc)},
             "service.upnext": {k: upnext.getSetting(k) for k in NEXT_SETTINGS if k in self.supported(upnext)},
+            "service.sc.profilesync": {
+                k: profile.getSetting(k) for k in PROFILE_SETTINGS if k in self.supported(profile)
+            },
             "kodi": {},
             "skin.amber": {},
         }
@@ -113,19 +119,37 @@ class Runtime:
         if not shared_setting(addon, key):
             return False
         if addon == "kodi":
-            return rpc("Settings.SetSettingValue", {"setting": key, "value": value}) is True
+            try:
+                rpc("Settings.GetSettingValue", {"setting": key})
+                if (
+                    key
+                    in (
+                        "locale.language",
+                        "lookandfeel.skin",
+                        "lookandfeel.soundskin",
+                        "subtitles.tv",
+                        "subtitles.movie",
+                    )
+                    and value
+                ):
+                    resource = rpc("Addons.GetAddonDetails", {"addonid": value, "properties": ["enabled"]})
+                    if not resource["addon"]["enabled"]:
+                        return False
+                return rpc("Settings.SetSettingValue", {"setting": key, "value": value}) is True
+            except ValueError:
+                return False
         if addon == "skin.amber":
             if xbmc.getSkinDir() != "skin.amber":
                 return False
             if type(value) is bool:
-                xbmc.executebuiltin(("Skin.SetBool(" if value else "Skin.Reset(") + key + ")")
+                xbmc.executebuiltin(("Skin.SetBool(" if value else "Skin.Reset(") + key + ")", True)
                 return True
             if (
                 isinstance(value, str)
                 and len(value) <= 128
                 and not any(c in value for c in ['"', ",", ")", "\\", "://", "/"])
             ):
-                xbmc.executebuiltin("Skin.SetString(" + key + "," + value + ")")
+                xbmc.executebuiltin("Skin.SetString(" + key + "," + value + ")", True)
                 return True
             return False
         target = xbmcaddon.Addon(addon)
@@ -134,7 +158,19 @@ class Runtime:
         target.setSetting(key, str(value))
         if addon == "plugin.video.stream-cinema":
             self.window.clearProperty("SC:stream_filter_prefs")
+        if addon == "service.sc.profilesync":
+            self.monitor.settings_changed.set()
         return target.getSetting(key) == str(value)
+
+    def persist_preferences(self, preferences):
+        # Kodi 21's JSON-RPC setter does not save guisettings.xml. This idempotent
+        # private skin flag invokes Kodi's native Save without changing the UI.
+        xbmc.executebuiltin("Skin.SetBool(scprofilesync.internal.settingssaved,false)", True)
+        saved = ET.parse(self.core_settings).getroot()
+        for key, value in preferences.get("kodi", {}).items():
+            node = saved.find("setting[@id='" + key + "']")
+            if node is None or not saved_value_matches(node.text or "", value):
+                raise OSError("Kodi preference was not saved: " + key)
 
     @staticmethod
     def get_sc_setting(key):
@@ -163,7 +199,9 @@ class Runtime:
             path.rename(path.with_name("state.corrupt-" + str(int(time.time())) + ".json"))
             saved = None
         engine = Engine(device, saved)
-        adapter = Adapter(self.database, self.preferences, self.apply_preference, self.invalidate)
+        adapter = Adapter(
+            self.database, self.preferences, self.apply_preference, self.invalidate, self.persist_preferences
+        )
         worker = Worker(
             engine,
             adapter,
@@ -173,6 +211,11 @@ class Runtime:
             status=self.status,
         )
         schedule = Schedule()
+        subtitles = SubtitleService(
+            rpc,
+            lambda: xbmcaddon.Addon("service.sc.profilesync").getSetting("hide_subtitles_for_czech_audio") != "false",
+        )
+        subtitles.start()
         self.monitor.settings_changed.set()
         while not self.monitor.abortRequested():
             try:
@@ -210,3 +253,17 @@ class Runtime:
             # This wait checks only flags; database/settings snapshots follow Schedule.
             if self.monitor.waitForAbort(1):
                 break
+        subtitles.close()
+
+
+def saved_value_matches(text, value):
+    if type(value) is bool:
+        return text.lower() == str(value).lower()
+    if isinstance(value, list):
+        return text == ",".join(str(part) for part in value)
+    if type(value) in (int, float):
+        try:
+            return float(text) == value
+        except ValueError:
+            return False
+    return text == value

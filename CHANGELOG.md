@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 — 2026-10-21
+
+- **Share common preferences durably:** Synchronize interface language, regional formats, subtitle appearance, installed skin/sound resources, browsing and seeking choices, common Stream Cinema options, Up Next activation and synchronization intervals. Request and verify Kodi's native settings save before acknowledging captured or imported core preferences; retain hardware, credentials, paths and security controls locally.
+- **Hide subtitles with Czech audio:** Automatically disable subtitle tracks for Czech audio, including forced tracks. For other audio, prefer complete Czech subtitles with English fallback and reject other languages. Respond independently of cloud transfers, cancel pending checks on Stop and preserve a manual subtitle-off choice for the current non-Czech track. Changing visibility keeps the selected subtitle decoder instead of reopening it.
+
 ## 0.1.2 — 2026-10-21
 
 - **Share interface sounds:** Synchronize Kodi's interface sound mode and volume while retaining local audio hardware, channel and passthrough settings. When an upgrade adds supported preferences, restore existing cloud values before a device's untouched defaults.

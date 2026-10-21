@@ -2,18 +2,29 @@
 
 import json
 import sqlite3
+import copy
 from .profile import apply_rows, export, read_rows
 
 
 class Adapter:
-    def __init__(self, database, preferences, apply_preference, invalidate=None):
+    def __init__(self, database, preferences, apply_preference, invalidate=None, persist_preferences=None):
         self.database = database
         self.preferences = preferences
         self.apply_preference = apply_preference
         self.invalidate = invalidate or (lambda namespaces: None)
+        self.persist_preferences = persist_preferences or (lambda preferences: None)
+        self.persisted = None
+
+    def persist(self, preferences):
+        native = {key: preferences.get(key, {}) for key in ("kodi", "skin.amber")}
+        if native != self.persisted:
+            self.persist_preferences(native)
+            self.persisted = copy.deepcopy(native)
 
     def snapshot(self):
-        return export(read_rows(self.database), self.preferences())
+        preferences = self.preferences()
+        self.persist(preferences)
+        return export(read_rows(self.database), preferences)
 
     def apply(self, records, expected, playing=False):
         self.imported_keys = set()
@@ -52,4 +63,7 @@ class Adapter:
                 if self.apply_preference(addon, setting, record["value"]):
                     settings_applied += 1
                     self.imported_keys.add(key)
+        if settings_applied:
+            # A crash after acknowledgement must not restore the previous core value.
+            self.persist(self.preferences())
         return len(changed) + settings_applied
