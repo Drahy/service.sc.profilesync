@@ -7,6 +7,8 @@ import sqlite3
 from xbmcgui import Window
 
 _revisions = {}
+_snapshots = {}
+_home = None
 
 
 def tracked(name):
@@ -14,7 +16,12 @@ def tracked(name):
 
 
 def revision(name):
-    return Window(10000).getProperty("sc.profile.sync." + name) if tracked(name) else ""
+    if not tracked(name):
+        return ""
+    global _home
+    if _home is None:
+        _home = Window(10000)
+    return _home.getProperty("sc.profile.sync." + name)
 
 
 def three_way(base, local, remote):
@@ -49,7 +56,13 @@ def force_reload(storage, force):
 
 def remember(storage):
     if tracked(storage._name):
-        storage._profile_sync_base = copy.deepcopy(storage._data)
+        snapshot = _snapshots.get(storage._name)
+        if snapshot is None or snapshot[0] is not storage._data:
+            # Readers share the same cached data object. Keep one independent,
+            # immutable merge base until a load/save replaces that object.
+            snapshot = (storage._data, copy.deepcopy(storage._data))
+            _snapshots[storage._name] = snapshot
+        storage._profile_sync_base = snapshot[1]
 
 
 def read_refresh(storage, cache):

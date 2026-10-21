@@ -1,0 +1,12 @@
+--- a/resources/lib/gui/item.py
++++ b/resources/lib/gui/item.py
+@@ -96,7 +96,8 @@
+ 
+ class SCBaseItem:
+     def __init__(self, data, debug=False):
+-        self.item = list_item(offscreen=False)
++        # Directory/playback metadata is built before the item is published.
++        self.item = list_item(offscreen=True)
+         self.data = data
+         self.info_set = False
+         self.info = {}

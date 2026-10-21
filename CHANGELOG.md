@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.5 — 2026-10-21
 
-- **Reopen the last episode folder after Exit:** The updated Stream Cinema integration restores the last local season and selected episode after a normal Kodi exit, including Exit through Home, without starting playback. Keep active-context crash recovery and shared Last seen history separate; reapply the integration patch to existing Stream Cinema installations.
+- **Reopen the last episode folder promptly after Exit:** The updated Stream Cinema integration restores the last local season and selected episode after a normal Kodi exit, including Exit through Home, without starting playback. Reuse merge snapshots and the Home window during profile reads, and prepare directory metadata without GUI locks. Keep active-context crash recovery and shared Last seen history separate; reapply the updated integration files to existing Stream Cinema installations.
 
 ## 0.1.4 — 2026-10-21
 

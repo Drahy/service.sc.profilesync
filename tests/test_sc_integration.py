@@ -87,3 +87,41 @@ def test_stale_storage_save_preserves_a_remote_field(classes):
             connection.execute("SELECT item_value FROM storage WHERE item_key=?", ("SCKODIItem-42",)).fetchone()[0]
         )
     assert value == {"watched:1:2": 20, "watched:1:3": 80}
+
+
+def test_repeated_readers_reuse_one_window_and_one_merge_snapshot(classes, monkeypatch):
+    Storage, _, properties, _ = classes
+    bridge = Storage.__init__.__globals__["profile_sync"]
+    windows, snapshots = [], []
+    real_copy = bridge.copy.deepcopy
+
+    def window(number):
+        windows.append(number)
+        return SimpleNamespace(getProperty=lambda key: properties.get(key, ""))
+
+    def snapshot(data):
+        snapshots.append(data)
+        return real_copy(data)
+
+    monkeypatch.setattr(bridge, "Window", window)
+    monkeypatch.setattr(bridge, "copy", SimpleNamespace(deepcopy=snapshot))
+    item = Storage("SCKODIItem-42")
+    item["series"] = {str(n): {"position": n} for n in range(100)}
+    snapshots.clear()
+    for _ in range(30):
+        assert Storage("SCKODIItem-42").get("series")["42"]["position"] == 42
+    assert windows == [10000]
+    assert snapshots == []
+
+
+def test_shared_snapshot_keeps_nested_local_edits_and_immediate_remote_refresh(classes):
+    Storage, _, properties, path = classes
+    item = Storage("SCKODIItem-42")
+    item["series"] = {"1": {"position": 10}}
+    reader = Storage("SCKODIItem-42")
+    item.get("series")["1"]["position"] = 20
+    remote(path, "SCKODIItem-42", {"series": {"1": {"position": 10}, "2": {"position": 30}}})
+    properties["sc.profile.sync.SCKODIItem-42"] = "imported"
+    assert reader.get("series") == {"1": {"position": 20}, "2": {"position": 30}}
+    reader["last_ep"] = "1x2"
+    assert Storage("SCKODIItem-42").get("series") == {"1": {"position": 20}, "2": {"position": 30}}

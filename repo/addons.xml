@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <addons>
-  <addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.4" provider-name="Drahy">
+  <addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.5" provider-name="Drahy">
     <requires>
       <import addon="xbmc.python" version="3.0.0" />
       <import addon="script.module.requests" version="2.25.1" />
@@ -18,7 +18,7 @@
       <license>GPL-3.0-only</license>
       <source>https://github.com/Drahy/service.sc.profilesync</source>
       <website>https://github.com/Drahy/service.sc.profilesync</website>
-      <news>0.1.4: Cancel profile work promptly on Quit and drain pending Kodi callbacks before monitor threads exit. Keep interrupted changes queued, follow locally refreshed Kra sessions and support companion Amber shutdown guards. Hardware, credentials and paths stay local.</news>
+      <news>0.1.5: Reopen the last episode after Exit and reduce repeated profile-copy and GUI work in the matching Stream Cinema integration.</news>
     </extension>
   </addon>
   <addon id="repository.drahy.scprofilesync" name="Drahy's SC Profile Sync Repository" version="1.0.0" provider-name="Drahy">

@@ -6,10 +6,13 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
 - Copy `resources/lib/sc_bridge.py` from this repository to SC's `resources/lib/common/profile_sync.py`.
 - Apply `last-seen-browse.patch` from the SC addon root with `git apply`.
 - Copy `resources/lib/sc_browse.py` to SC's `resources/lib/common/resume_browse.py`.
+- Apply `menu-performance.patch` from the SC addon root to prepare plugin items without GUI locks.
 
 The bridges perform local cache invalidation, safe SQLite merging and exact episode selection. They contain no cloud requests or playback commands. The profile service performs cloud operations independently and defers imports during playback.
 
 The updated navigation patch restores the last local episode folder and selected episode after a normal Kodi exit as well as an interrupted active session. Exiting through Home retains that last episode; startup opens its folder without playing it. Non-episode folders are not newly restored after a normal exit, and a service restart within the same Kodi process never changes the current screen. Reapply the updated navigation hunk to an existing installation and restart Kodi; updating SC Profile Sync alone does not replace Stream Cinema's integration files.
+
+For 0.1.5, recopy the updated `sc_bridge.py` as `profile_sync.py`: repeated readers now share one independent merge snapshot for the same cached data object and reuse a Home-window handle. Revision checks still run on every read, so remote updates remain immediately visible. Loads and committed saves replace the snapshot; nested unsaved edits still merge with current remote data.
 
 Keep the locally patched Stream Cinema and helper on manual updates. Reapply these patches to a reviewed future build before enabling it. Up Next uses the upstream 1.2.1 code, including the accepted replacement-playback fix in upstream commit `42184af3d4d2`; the optional credits-autoplay change in PR 336 is not installed.
 
@@ -20,3 +23,7 @@ For the integration and navigation tests, set `SC_STORAGE_CANDIDATE` to the patc
 The [Amber patch](amber-shutdown.patch) contains the companion changes tested with Amber 3.99.02 on Kodi 21.3. It avoids empty search resets and prevents unload hooks from scheduling deferred skin-setting saves after the profile service has begun stopping. Normal navigation retains its existing behavior; the guard is ignored while SC Profile Sync is disabled. Shutdown skips the final Home focus/background writes and retains their previously stored values. This does not affect Stream Cinema's separate season/episode navigation checkpoints.
 
 Apply it to a backed-up compatible Amber checkout with `git apply --check` followed by `git apply`, or review and apply the corresponding XML edits in the installed skin. Restart Kodi after updating both the skin and SC Profile Sync 0.1.4 or newer. The service itself does not patch skin files, change update policies or replace Kodi binaries. A later skin reinstall/update may replace those XML edits; retain the reviewed patch or use a skin version that includes it.
+
+## Optional disabled-view optimization
+
+`amber-disabled-views.patch` skips construction of alternate video layouts that Amber's existing `Hide.*View` preferences disable. List remains loaded as the default/fallback. Default preferences still load every layout; the patch does not silently select a restricted set. Reenter the media window or restart Kodi after changing enabled views. These appearance preferences are shared by profile synchronization, so selecting only List also changes the enabled-view choice on the other devices.

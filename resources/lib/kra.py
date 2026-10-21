@@ -27,7 +27,7 @@ class Kra:
         self.check_running = check_running or (lambda: None)
         self.wait = wait or time.sleep
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "SC-Profile-Sync/0.1.4"
+        self.session.headers["User-Agent"] = "SC-Profile-Sync/0.1.5"
         self.token = self.get("kraska.token") or ""
         self.setting_token = self.token
 
