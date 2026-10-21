@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Reopen the last episode folder after Exit:** The updated Stream Cinema integration restores the last local season and selected episode after a normal Kodi exit, including Exit through Home, without starting playback. Keep active-context crash recovery and shared Last seen history separate; reapply the integration patch to existing Stream Cinema installations.
+
 ## 0.1.4 — 2026-10-21
 
 - **Stop background work before Kodi teardown:** Observe Quit before the startup delay, cancel profile transfers and upload-verification waits between bounded requests, and always stop subtitle monitoring. Drain each thread's pending Kodi callbacks before releasing its monitor to prevent native teardown crashes. Keep unfinished changes queued for the next start, follow Kra sessions refreshed locally by Stream Cinema, and signal compatible Amber windows to avoid deferred settings saves during shutdown.

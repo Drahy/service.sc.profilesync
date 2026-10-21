@@ -9,6 +9,8 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
 
 The bridges perform local cache invalidation, safe SQLite merging and exact episode selection. They contain no cloud requests or playback commands. The profile service performs cloud operations independently and defers imports during playback.
 
+The updated navigation patch restores the last local episode folder and selected episode after a normal Kodi exit as well as an interrupted active session. Exiting through Home retains that last episode; startup opens its folder without playing it. Non-episode folders are not newly restored after a normal exit, and a service restart within the same Kodi process never changes the current screen. Reapply the updated navigation hunk to an existing installation and restart Kodi; updating SC Profile Sync alone does not replace Stream Cinema's integration files.
+
 Keep the locally patched Stream Cinema and helper on manual updates. Reapply these patches to a reviewed future build before enabling it. Up Next uses the upstream 1.2.1 code, including the accepted replacement-playback fix in upstream commit `42184af3d4d2`; the optional credits-autoplay change in PR 336 is not installed.
 
 For the integration and navigation tests, set `SC_STORAGE_CANDIDATE` to the patched SC `resources/lib/common` directory, then run `pytest -q tests`.

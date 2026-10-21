@@ -31,7 +31,7 @@ Failed connections back off to three minutes with the default settings. Device c
 
 ## History and restore
 
-The SC integration opens a show's last shared season and selects its exact last watched episode without starting playback. **All seasons** remains available in the context menu. It resolves saved IDs through current detail routes and pages older entries. Local crash recovery recognizes opaque catalogue aliases through stable item IDs. Navigation URLs and browser stacks are not uploaded.
+The SC integration opens a show's last shared season and selects its exact last watched episode without starting playback. **All seasons** remains available in the context menu. It resolves saved IDs through current detail routes and pages older entries. After a normal Kodi exit, the updated integration also reopens the last local episode folder and selects its saved episode, including when Exit was reached through Home. Local crash recovery recognizes opaque catalogue aliases through stable item IDs and still restores only an active context. Navigation URLs and browser stacks are not uploaded.
 
 Every installation creates its own identity. **Do not copy `device.json` or `state.json` between devices.** Existing viewing history is merged; a new installation's untouched preference defaults do not replace the existing cloud profile. Later explicit local edits are versioned normally.
 

@@ -192,9 +192,53 @@ def test_same_process_service_restart_does_not_steal_ui(environment):
     assert environment.make().pending is False
 
 
-def test_normal_shutdown_prevents_automatic_restore(environment):
+def test_normal_shutdown_restores_the_exact_episode_without_playing(environment):
     env = environment
     worker = env.make()
+    worker.capture()
+    worker.run()
+    env.context.pid += 1
+    env.context.window, env.context.folder = 10000, ""
+    worker = env.make()
+    assert worker.pending
+    env.context.now += 4
+    worker.restore()
+    assert len(env.context.commands) == 1
+    assert env.context.commands[0].startswith("ActivateWindow(videos,")
+    assert "PlayMedia" not in env.context.commands[0]
+    env.context.window = 10025
+    env.context.folder = env.module.restoring_uri(worker.state["checkpoint"]["folder"])
+    worker.restore()
+    assert env.control.selected == 2
+    assert not worker.pending
+
+
+def test_normal_exit_through_home_retains_the_last_episode(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    env.context.window, env.context.folder = 10000, ""
+    worker.capture()
+    assert not worker.state["checkpoint"]["active"]
+    worker.run()
+    env.context.pid += 1
+    assert env.make().pending
+
+
+def test_crash_after_leaving_the_addon_does_not_restore_inactive_context(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    env.context.window, env.context.folder = 10000, ""
+    worker.capture()
+    env.context.pid += 1
+    assert env.make().pending is False
+
+
+def test_normal_shutdown_does_not_restore_non_episode_folders(environment):
+    env = environment
+    worker = env.make()
+    env.context.key = uri("/FGet/123")
     worker.capture()
     worker.run()
     env.context.pid += 1
