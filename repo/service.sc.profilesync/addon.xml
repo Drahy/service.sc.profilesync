@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.1" provider-name="Drahy">
+<addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.2" provider-name="Drahy">
   <requires>
     <import addon="xbmc.python" version="3.0.0" />
     <import addon="script.module.requests" version="2.25.1" />
@@ -10,11 +10,11 @@
   <extension point="xbmc.python.script" library="sync_now.py"><provides>executable</provides></extension>
   <extension point="xbmc.addon.metadata">
     <summary lang="en_GB">Share Stream Cinema preferences and viewing history through private Kra storage.</summary>
-    <description lang="en_GB">Synchronize watched states, resume positions, Last seen, selected addon preferences and Amber appearance. Keep credentials, hardware settings and navigation local. Network operations run in the background.</description>
+    <description lang="en_GB">Synchronize watched states, resume positions, Last seen, interface sounds, selected addon preferences and Amber appearance. Keep credentials, hardware settings and navigation local. Network operations run in the background.</description>
     <platform>all</platform>
     <license>GPL-3.0-only</license>
     <source>https://github.com/Drahy/service.sc.profilesync</source>
     <website>https://github.com/Drahy/service.sc.profilesync</website>
-    <news>0.1.1: Install and update through the Kodi repository. Reduce background checks while synchronizing promptly after Stop and wake. Restore existing cloud preferences on new devices.</news>
+    <news>0.1.2: Share Kodi interface sound mode and volume while keeping audio hardware local. Restore existing cloud values when an upgrade adds new preferences.</news>
   </extension>
 </addon>

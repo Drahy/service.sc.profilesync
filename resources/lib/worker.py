@@ -43,12 +43,11 @@ class Worker:
                     continue
             except (ValueError, KeyError, KraError):
                 continue
-            if self.engine.generation == 0:
-                # A newly added device must restore cloud preferences before its defaults.
-                for key in data["records"]:
-                    old = self.engine.records.get(key)
-                    if key.startswith("setting|") and old and old["v"][0] == 0 and old["v"][2] == self.engine.device:
-                        self.engine.records.pop(key)
+            # Fresh devices and newly supported preferences restore cloud values first.
+            for key in data["records"]:
+                old = self.engine.records.get(key)
+                if key.startswith("setting|") and old and old["v"][0] == 0 and old["v"][2] == self.engine.device:
+                    self.engine.records.pop(key)
             self.engine.merge(data["records"])
             self.downloaded.add(file["ident"])
         # Local viewing may have changed while a transfer was in flight.
@@ -68,11 +67,10 @@ class Worker:
                 if key in self.adapter.imported_keys and self.engine.records[key]["value"] is None:
                     self.engine.observed.pop(key, None)
         if self.engine.dirty:
-            if self.engine.generation == 0:
-                # First-device preferences become authoritative for later fresh installs.
-                for key, record in self.engine.records.items():
-                    if key.startswith("setting|") and record["v"][0] == 0 and record["v"][2] == self.engine.device:
-                        record["v"] = self.engine.version()
+            # Publish initial values once, including preferences added by an upgrade.
+            for key, record in self.engine.records.items():
+                if key.startswith("setting|") and record["v"][0] == 0 and record["v"][2] == self.engine.device:
+                    record["v"] = self.engine.version()
             self.engine.generation += 1
             self.save()  # Reserve the name before network I/O; interrupted uploads are not reused.
             raw = encode(self.engine.device, self.engine.generation, self.engine.records)

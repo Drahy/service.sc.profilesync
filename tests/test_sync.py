@@ -260,6 +260,37 @@ def test_new_device_restores_existing_cloud_preferences_instead_of_its_defaults(
     assert a.adapter.snapshot()[0]["setting|service.upnext|autoPlaySeasonTime"] == "35"
 
 
+def test_interface_sound_preferences_do_not_share_audio_hardware():
+    for key in ("audiooutput.guisoundmode", "audiooutput.guisoundvolume"):
+        assert valid_key("setting|kodi|" + key)
+    for key in (
+        "audiooutput.audiodevice",
+        "audiooutput.channels",
+        "audiooutput.passthrough",
+        "audiooutput.dtspassthrough",
+    ):
+        assert not valid_key("setting|kodi|" + key)
+
+
+def test_existing_device_restores_newly_supported_cloud_sound_preference(tmp_path):
+    backend = Backend()
+    a, _, preferences_a = replica(tmp_path, DEVICE_A, backend, preferences={"kodi": {"subtitles.opacity": 100}})
+    b, _, preferences_b = replica(tmp_path, DEVICE_B, backend, preferences={"kodi": {"subtitles.opacity": 100}})
+    a.sync()
+    b.sync()
+    assert b.engine.generation > 0
+    preferences_a["kodi"]["audiooutput.guisoundmode"] = 0
+    preferences_a["kodi"]["audiooutput.guisoundvolume"] = 40
+    a.sync()
+    preferences_b["kodi"]["audiooutput.guisoundmode"] = 1
+    preferences_b["kodi"]["audiooutput.guisoundvolume"] = 100
+    b.sync()
+    assert preferences_b["kodi"]["audiooutput.guisoundmode"] == 0
+    assert preferences_b["kodi"]["audiooutput.guisoundvolume"] == 40
+    a.sync()
+    assert preferences_a["kodi"]["audiooutput.guisoundmode"] == 0
+
+
 def test_new_device_restores_legacy_zero_clock_cloud_preferences(tmp_path):
     backend = Backend()
     key = "setting|service.upnext|autoPlaySeasonTime"

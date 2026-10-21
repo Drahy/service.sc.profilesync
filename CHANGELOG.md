@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-10-21
+
+- **Share interface sounds:** Synchronize Kodi's interface sound mode and volume while retaining local audio hardware, channel and passthrough settings. When an upgrade adds supported preferences, restore existing cloud values before a device's untouched defaults.
+
 ## 0.1.1 — 2026-10-21
 
 - **Install and update through Kodi:** Add a repository installer, versioned addon ZIPs, SHA-256 feed checksums and a reproducible public package builder. Keep dependencies and separately repaired Stream Cinema builds explicit.

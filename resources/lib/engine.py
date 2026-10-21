@@ -157,7 +157,8 @@ class Engine:
             else:
                 record_value = value
                 rank = 0
-            stamp = [int(clocks.get(key, 0)), -rank, self.device] if initial else version
+            new_preference = key.startswith("setting|") and key not in self.observed and key not in self.records
+            stamp = [int(clocks.get(key, 0)), -rank, self.device] if initial or new_preference else version
             record = {"v": stamp, "value": copy.deepcopy(record_value)}
             if not valid_record(key, record):
                 continue

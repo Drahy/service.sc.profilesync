@@ -33,7 +33,14 @@ NEXT_SETTINGS = {
     "autoPlayTimeL",
     "autoPlayTimeXL",
 }
-KODI_SETTINGS = {"locale.subtitlelanguage", "subtitles.languages", "subtitles.colorpick", "subtitles.opacity"}
+KODI_SETTINGS = {
+    "locale.subtitlelanguage",
+    "subtitles.languages",
+    "subtitles.colorpick",
+    "subtitles.opacity",
+    "audiooutput.guisoundmode",
+    "audiooutput.guisoundvolume",
+}
 
 
 def shared_setting(addon, key):

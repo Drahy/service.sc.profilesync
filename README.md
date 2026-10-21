@@ -2,7 +2,7 @@
 
 Share Stream Cinema viewing history and selected preferences through the existing account's **private Kra storage**. Each Kodi device keeps its own database and an offline checkpoint. Devices connect directly to Kra; a notebook or home server does not need to remain on.
 
-The service synchronizes Last seen, watched markers, episode/movie resume positions, the last played episode, per-title language choices, selected Stream Cinema and Up Next preferences, subtitle preferences and portable Amber appearance settings. Explicit deletions prevent a stale device from restoring a cleared resume position.
+The service synchronizes Last seen, watched markers, episode/movie resume positions, the last played episode, per-title language choices, selected Stream Cinema and Up Next preferences, subtitle preferences, interface sound mode/volume and portable Amber appearance settings. Explicit deletions prevent a stale device from restoring a cleared resume position.
 
 Passwords, tokens, cached stream URLs, navigation checkpoints, HDR/decoder settings, audio output, speed tests and network limits stay local. The service uses the account configured in Stream Cinema. It never controls playback. Remote imports wait until playback stops, and network failures leave changes queued locally.
 
@@ -34,6 +34,8 @@ Failed connections back off to three minutes with the default settings. Device c
 The SC integration opens a show's last shared season and selects its exact last watched episode without starting playback. **All seasons** remains available in the context menu. It resolves saved IDs through current detail routes and pages older entries. Local crash recovery recognizes opaque catalogue aliases through stable item IDs. Navigation URLs and browser stacks are not uploaded.
 
 Every installation creates its own identity. **Do not copy `device.json` or `state.json` between devices.** Existing viewing history is merged; a new installation's untouched preference defaults do not replace the existing cloud profile. Later explicit local edits are versioned normally.
+
+Kodi's interface click/notification sound mode and volume are shared. Audio devices, HDMI output, speaker channels and passthrough stay local. Upgrade SC Profile Sync on every device so each version recognizes the same supported preferences. Newly supported preferences restore an existing cloud value before publishing an untouched local value.
 
 Kra must allow private-file access for the account. Availability after a subscription expires has not been established. A clean Kodi reinstall still requires the addons, the SC integration and the same Kra login. The cloud restores supported preferences and viewing state. Local artwork, complete skin installations, generated widgets and platform-specific shortcut paths require a separate local backup.
 

@@ -83,6 +83,27 @@ def test_future_setting_is_retained_without_writing_an_unsupported_version(monke
     assert "autoPlayCreditsTime" not in values["service.upnext"]
 
 
+def test_native_interface_sound_reads_and_imports_do_not_touch_hardware(monkeypatch, tmp_path):
+    client, _ = runtime(monkeypatch, tmp_path)
+    settings = {"audiooutput.guisoundmode": 1, "audiooutput.guisoundvolume": 100}
+
+    def rpc(method, params):
+        key = params["setting"]
+        if key not in settings:
+            raise ValueError("Unsupported test setting")
+        if method == "Settings.GetSettingValue":
+            return {"value": settings[key]}
+        assert method == "Settings.SetSettingValue"
+        settings[key] = params["value"]
+        return True
+
+    monkeypatch.setattr(sys.modules["resources.lib.runtime"], "rpc", rpc)
+    assert client.preferences()["kodi"] == settings
+    assert client.apply_preference("kodi", "audiooutput.guisoundmode", 0)
+    assert settings["audiooutput.guisoundmode"] == 0
+    assert not client.apply_preference("kodi", "audiooutput.passthrough", True)
+
+
 def test_monitor_callbacks_queue_work_without_running_the_worker(monkeypatch, tmp_path):
     runtime(monkeypatch, tmp_path)
     monitor = sys.modules["resources.lib.runtime"].ProfileMonitor()
