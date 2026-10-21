@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.3" provider-name="Drahy">
+<addon id="service.sc.profilesync" name="SC Profile Sync" version="0.1.4" provider-name="Drahy">
   <requires>
     <import addon="xbmc.python" version="3.0.0" />
     <import addon="script.module.requests" version="2.25.1" />
@@ -15,6 +15,6 @@
     <license>GPL-3.0-only</license>
     <source>https://github.com/Drahy/service.sc.profilesync</source>
     <website>https://github.com/Drahy/service.sc.profilesync</website>
-    <news>0.1.3: Share common interface, regional, subtitle and addon preferences. Persist captured core settings before acknowledging them. Hide subtitles with Czech audio; otherwise prefer Czech, then English. Hardware, credentials and paths stay local.</news>
+    <news>0.1.4: Cancel profile work promptly on Quit and drain pending Kodi callbacks before monitor threads exit. Keep interrupted changes queued, follow locally refreshed Kra sessions and support companion Amber shutdown guards. Hardware, credentials and paths stay local.</news>
   </extension>
 </addon>

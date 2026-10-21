@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 — 2026-10-21
+
+- **Stop background work before Kodi teardown:** Observe Quit before the startup delay, cancel profile transfers and upload-verification waits between bounded requests, and always stop subtitle monitoring. Drain each thread's pending Kodi callbacks before releasing its monitor to prevent native teardown crashes. Keep unfinished changes queued for the next start, follow Kra sessions refreshed locally by Stream Cinema, and signal compatible Amber windows to avoid deferred settings saves during shutdown.
+
 ## 0.1.3 — 2026-10-21
 
 - **Share common preferences durably:** Synchronize interface language, regional formats, subtitle appearance, installed skin/sound resources, browsing and seeking choices, common Stream Cinema options, Up Next activation and synchronization intervals. Request and verify Kodi's native settings save before acknowledging captured or imported core preferences; retain hardware, credentials, paths and security controls locally.

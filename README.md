@@ -37,6 +37,8 @@ Every installation creates its own identity. **Do not copy `device.json` or `sta
 
 Kodi's interface click/notification sound mode and volume are shared. Audio devices, HDMI output, speaker channels and passthrough stay local. Upgrade SC Profile Sync on every device so each version recognizes the same supported preferences. Newly supported preferences restore an existing cloud value before publishing an untouched local value.
 
+Quit and native service-abort requests cancel pending profile work, including upload-verification backoff. Requests use short connection/read timeouts, and an interrupted upload keeps its reserved generation and local changes for the next start. Subtitle monitoring is closed before the service returns, including exceptional shutdown. Compatible Amber windows can use the transient shutdown guard described in the [integration guide](integration/README.md); the service never edits another addon automatically.
+
 ## Shared preferences and crash persistence
 
 Common preferences include Kodi interface/audio languages, regional formats, keyboard layouts, subtitle font/size/style/position, skin theme/font, installed skin/sound/subtitle-service selections, file-list and video-library display options, seeking steps, and global update mode. Stream Cinema genre/menu/Skip options, parental-control choices and startup behavior are shared alongside its existing quality/language preferences. Up Next's activation toggle and the profile service's local/cloud intervals are also shared.

@@ -7,11 +7,12 @@ from .local import write
 
 
 class Worker:
-    def __init__(self, engine, adapter, backend, checkpoint, playing=None, status=None):
+    def __init__(self, engine, adapter, backend, checkpoint, playing=None, status=None, check_running=None):
         self.engine, self.adapter, self.backend = engine, adapter, backend
         self.checkpoint = checkpoint
         self.playing = playing or (lambda: False)
         self.status = status or (lambda value: None)
+        self.check_running = check_running or (lambda: None)
         self.downloaded = set()
         self.last_saved = None
 
@@ -24,6 +25,7 @@ class Worker:
             self.last_saved = copy.deepcopy(state)
 
     def capture(self):
+        self.check_running()
         snapshot, clocks = self.adapter.snapshot()
         if not self.engine.initialized or snapshot != self.engine.observed:
             self.engine.capture(snapshot, clocks)
@@ -34,6 +36,7 @@ class Worker:
         self.capture()
         files = self.backend.list()
         for file in sorted(files, key=lambda f: f["name"], reverse=True):
+            self.check_running()
             if file["ident"] in self.downloaded:
                 continue
             try:
@@ -52,6 +55,7 @@ class Worker:
             self.downloaded.add(file["ident"])
         # Local viewing may have changed while a transfer was in flight.
         latest = self.capture()
+        self.check_running()
         applied = self.adapter.apply(self.engine.records, latest, playing=self.playing())
         if applied:
             after, _ = self.adapter.snapshot()
@@ -67,6 +71,7 @@ class Worker:
                 if key in self.adapter.imported_keys and self.engine.records[key]["value"] is None:
                     self.engine.observed.pop(key, None)
         if self.engine.dirty:
+            self.check_running()
             # Publish initial values once, including preferences added by an upgrade.
             for key, record in self.engine.records.items():
                 if key.startswith("setting|") and record["v"][0] == 0 and record["v"][2] == self.engine.device:
@@ -76,6 +81,7 @@ class Worker:
             raw = encode(self.engine.device, self.engine.generation, self.engine.records)
             name = PREFIX + self.engine.device + "-" + ("%012d" % self.engine.generation) + ".json"
             self.backend.upload(name, raw)
+            self.check_running()
             self.engine.dirty = False
             self.save()
             self.backend.prune(self.engine.device)

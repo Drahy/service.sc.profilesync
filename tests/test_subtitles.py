@@ -13,6 +13,36 @@ def module(monkeypatch):
     return importlib.import_module("resources.lib.subtitles")
 
 
+def test_abort_drains_worker_callbacks_before_the_thread_disappears(monkeypatch):
+    policy = module(monkeypatch)
+    queued, destroyed, calls = [], [], []
+    original = policy.SubtitleMonitor
+
+    class AbortMonitor(original):
+        def __init__(self, *args):
+            super().__init__(*args)
+            queued.append(lambda: self.onNotification("xbmc", "Player.OnAVStart", "{}"))
+
+        def waitForAbort(self, _):
+            return True  # Kodi's native path does not dispatch queued callbacks.
+
+        def __del__(self):
+            destroyed.append(not queued)
+
+    def dispatch(_):
+        while queued:
+            queued.pop(0)()
+
+    monkeypatch.setattr(policy, "SubtitleMonitor", AbortMonitor)
+    monkeypatch.setattr(policy.xbmc, "sleep", dispatch, raising=False)
+    service = policy.SubtitleService(lambda *args: calls.append(args), lambda: True)
+    service.start()
+    service.thread.join(timeout=2)
+    assert not service.thread.is_alive()
+    assert not queued and destroyed == [True]
+    assert not calls
+
+
 def controller(monkeypatch, audio="ces", enabled=True, streams=None):
     policy = module(monkeypatch)
     properties = {

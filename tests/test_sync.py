@@ -14,6 +14,7 @@ from resources.lib.kra import KraError, NAME
 from resources.lib.local import read
 from resources.lib.profile import apply_rows, export
 from resources.lib.worker import Worker
+from resources.lib.cancellation import SyncStopped
 
 DEVICE_A, DEVICE_B = "a" * 32, "b" * 32
 KEY = "history|42|1|2"
@@ -87,6 +88,45 @@ def replica(tmp_path, device, backend, rows=None, preferences=None, playing=None
     engine = Engine(device, now=lambda: 1792500000000)
     worker = Worker(engine, adapter, backend, tmp_path / (device + ".json"), playing)
     return worker, path, prefs
+
+
+def test_interrupted_upload_keeps_reserved_generation_and_unsent_changes(tmp_path):
+    backend = Backend()
+    worker, _, _ = replica(tmp_path, DEVICE_A, backend, {"SCKODIItem-42": {"watched:1:2": 75}})
+
+    def cancelled(*args):
+        raise SyncStopped()
+
+    backend.upload = cancelled
+    backend.prune = lambda _: pytest.fail("Unverified uploads must not be pruned")
+    with pytest.raises(SyncStopped):
+        worker.sync()
+    state = read(worker.checkpoint)
+    assert state["dirty"] and worker.engine.dirty
+    assert state["generation"] == 1
+    assert state["records"] == worker.engine.state()["records"]
+
+
+def test_quit_after_listing_does_not_download_or_import_remote_history(tmp_path):
+    backend = Backend()
+    worker, _, _ = replica(tmp_path, DEVICE_A, backend)
+    stopped = False
+
+    def listing():
+        nonlocal stopped
+        stopped = True
+        return [{"name": "remote", "ident": "remote"}]
+
+    def check():
+        if stopped:
+            raise SyncStopped()
+
+    worker.check_running = check
+    backend.list = listing
+    backend.download = lambda _: pytest.fail("Do not download after Quit")
+    with pytest.raises(SyncStopped):
+        worker.sync()
+    assert not worker.downloaded
 
 
 def test_payload_roundtrip_and_checksum():

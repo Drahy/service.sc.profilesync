@@ -8,9 +8,11 @@ from urllib.parse import urlparse
 
 import requests
 
+from .cancellation import SyncStopped
+
 PREFIX = "kodi-profile-v1-"
 NAME = re.compile(r"^kodi-profile-v1-([a-f0-9]{32})-(\d{12})\.json$")
-TIMEOUT = (4, 10)
+TIMEOUT = (2, 2)
 MAX_BYTES = 4 * 1024 * 1024
 
 
@@ -19,12 +21,15 @@ class KraError(Exception):
 
 
 class Kra:
-    def __init__(self, get_setting, set_setting=None):
+    def __init__(self, get_setting, set_setting=None, check_running=None, wait=None):
         self.get = get_setting
         self.set = set_setting or (lambda key, value: None)
+        self.check_running = check_running or (lambda: None)
+        self.wait = wait or time.sleep
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "SC-Profile-Sync/0.1.3"
+        self.session.headers["User-Agent"] = "SC-Profile-Sync/0.1.4"
         self.token = self.get("kraska.token") or ""
+        self.setting_token = self.token
 
     def login(self):
         result = self._request(
@@ -41,13 +46,21 @@ class Kra:
         self.set("kraska.chsum", hashlib.md5(value.encode("utf-8")).hexdigest())
 
     def _request(self, endpoint, data, retry=True, use_token=True):
+        self.check_running()
         payload = dict(data)
         if use_token:
+            # Stream Cinema can refresh its session after this worker starts.
+            # Follow external changes without replacing a newly logged-in token
+            # when a custom settings adapter has not persisted it yet.
+            current = self.get("kraska.token") or ""
+            if current != self.setting_token:
+                self.setting_token = self.token = current
             if not self.token:
                 self.login()
             payload["session_id"] = self.token
         try:
             response = self.session.post("https://api.kra.sk" + endpoint, json=payload, timeout=TIMEOUT)
+            self.check_running()
             response.raise_for_status()
             result = response.json()
         except (requests.RequestException, ValueError):
@@ -86,9 +99,11 @@ class Kra:
         url = self._trusted_url(result.get("data", {}).get("link", ""))
         try:
             response = self.session.get(url, timeout=TIMEOUT, stream=True)
+            self.check_running()
             response.raise_for_status()
             chunks, size = [], 0
             for chunk in response.iter_content(65536):
+                self.check_running()
                 size += len(chunk)
                 if size > MAX_BYTES:
                     raise KraError("Remote profile exceeds the size limit")
@@ -98,6 +113,7 @@ class Kra:
             raise KraError("Kra profile download unavailable") from None
 
     def upload(self, name, raw):
+        self.check_running()
         if not NAME.fullmatch(name) or len(raw) > MAX_BYTES:
             raise ValueError("Invalid profile upload")
         result = self._request("/api/file/create", {"data": {"name": name}, "shared": False})
@@ -109,6 +125,7 @@ class Kra:
         headers = {"Tus-Resumable": "1.0.0", "Upload-Metadata": "ident " + metadata, "Upload-Length": str(len(raw))}
         try:
             response = self.session.post(link, headers=headers, timeout=TIMEOUT, allow_redirects=False)
+            self.check_running()
             if response.status_code != 201:
                 raise KraError("Kra upload initialization failed")
             location = response.headers.get("Location", "")
@@ -119,12 +136,16 @@ class Kra:
                 "Content-Type": "application/offset+octet-stream",
             }
             response = self.session.patch(url, data=raw, headers=headers, timeout=TIMEOUT)
+            self.check_running()
             if response.status_code != 204:
                 raise KraError("Kra did not complete the upload")
             # Newly completed private files can take a moment to become resolvable.
             for delay in (0, 0.25, 0.5, 1, 2, 3):
+                self.check_running()
                 if delay:
-                    time.sleep(delay)
+                    if self.wait(delay):
+                        raise SyncStopped()
+                    self.check_running()
                 try:
                     if self.download(file) == raw:
                         break
@@ -149,6 +170,7 @@ class Kra:
         )
         verified = 0
         for file in own:
+            self.check_running()
             if verified >= keep:
                 self._request("/api/file/delete", {"data": {"ident": file["ident"]}})
                 continue

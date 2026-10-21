@@ -7,6 +7,7 @@ import sys
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 import pytest
+from resources.lib.cancellation import SyncStopped
 
 
 def runtime(monkeypatch, tmp_path):
@@ -51,6 +52,8 @@ def runtime(monkeypatch, tmp_path):
             Monitor=type("Monitor", (), {}),
             Player=type("Player", (), {}),
             executeJSONRPC=lambda raw: json.dumps({"error": {}}),
+            log=lambda *args: None,
+            LOGINFO=1,
         ),
     )
     monkeypatch.setitem(sys.modules, "xbmcgui", SimpleNamespace())
@@ -63,7 +66,9 @@ def runtime(monkeypatch, tmp_path):
     result.skin_settings = tmp_path / "missing-skin-settings.xml"
     result.window = SimpleNamespace(clearProperty=lambda key: None)
     result.setting_ids = {}
-    result.monitor = SimpleNamespace(settings_changed=SimpleNamespace(set=lambda: None))
+    result.monitor = SimpleNamespace(
+        settings_changed=SimpleNamespace(set=lambda: None), check_running=lambda: None
+    )
     return result, values
 
 
@@ -92,6 +97,31 @@ def test_future_setting_is_retained_without_writing_an_unsupported_version(monke
     assert "autoPlayCreditsTime" not in client.preferences()["service.upnext"]
     assert not client.apply_preference("service.upnext", "autoPlayCreditsTime", "0")
     assert "autoPlayCreditsTime" not in values["service.upnext"]
+
+
+@pytest.mark.parametrize("signal", [SyncStopped, SystemExit])
+def test_shutdown_always_closes_subtitle_monitoring(monkeypatch, tmp_path, signal):
+    client, _ = runtime(monkeypatch, tmp_path)
+    module = sys.modules["resources.lib.runtime"]
+    client.directory = tmp_path / "profile"
+    client.database = tmp_path / "storage.db"
+    client.monitor.wait_for_stop = lambda _: False
+    client.monitor.stopping = lambda: False
+    events = []
+    service = SimpleNamespace(start=lambda: events.append("start"), close=lambda: events.append("close"))
+    monkeypatch.setattr(module, "SubtitleService", lambda *args: service)
+    monkeypatch.setattr(module, "identity", lambda _: "a" * 32)
+
+    def cancelled(*args):
+        raise signal()
+
+    client._cycle = cancelled
+    if signal is SystemExit:
+        with pytest.raises(SystemExit):
+            client.run()
+    else:
+        client.run()
+    assert events == ["start", "close"]
 
 
 def test_native_interface_sound_reads_and_imports_do_not_touch_hardware(monkeypatch, tmp_path):

@@ -1,0 +1,80 @@
+diff --git a/1080i/Custom_1131_SingleSearch.xml b/1080i/Custom_1131_SingleSearch.xml
+index ec0bc3f8..8cc2cc81 100644
+--- a/1080i/Custom_1131_SingleSearch.xml
++++ b/1080i/Custom_1131_SingleSearch.xml
+@@ -3,10 +3,10 @@
+ 
+ <!-- Search functionality adapted from sualfred's embuary and jurialmunkey's arctic.zephyr.2 -->
+     <onload condition="String.IsEmpty(Skin.String(SingleSearchTerm))">Action(Close)</onload>
+-    <onunload>Skin.Reset(SingleSearchType)</onunload>
+-    <onunload>Skin.Reset(SingleSearchHeader)</onunload>
+-    <onunload>Skin.Reset(OnlineMediaType)</onunload>
+-    <onunload>Skin.Reset(OnlineCallType)</onunload>
++    <onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Skin.String(SingleSearchType))">Skin.Reset(SingleSearchType)</onunload>
++    <onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Skin.String(SingleSearchHeader))">Skin.Reset(SingleSearchHeader)</onunload>
++    <onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Skin.String(OnlineMediaType))">Skin.Reset(OnlineMediaType)</onunload>
++    <onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Skin.String(OnlineCallType))">Skin.Reset(OnlineCallType)</onunload>
+ 	
+ 	<defaultcontrol always="true">10</defaultcontrol>
+         
+diff --git a/1080i/Home.xml b/1080i/Home.xml
+index d99fdb9d..ddf6c411 100644
+--- a/1080i/Home.xml
++++ b/1080i/Home.xml
+@@ -28,18 +28,18 @@
+ 	<onload>ClearProperty(SingleSearchCalledInfo)</onload>
+ 	<onload>ClearProperty(InfoCalledGeneralSearch)</onload>
+ 	<onload>ClearProperty(InfoCalledSingleSearch)</onload>
+-	<onload>Skin.Reset(CustomSearchTerm)</onload>
+-	<onload>Skin.Reset(SingleSearchTerm)</onload>
++	<onload condition="!String.IsEmpty(Skin.String(CustomSearchTerm))">Skin.Reset(CustomSearchTerm)</onload>
++	<onload condition="!String.IsEmpty(Skin.String(SingleSearchTerm))">Skin.Reset(SingleSearchTerm)</onload>
+ 	
+ 	<!-- Remember what the focused menu item background is -->
+-	<onunload condition="!String.IsEmpty(Container(300).ListItem.Property(Background))">Skin.SetString(FocusedMenu.Background,$INFO[Container(300).ListItem.Property(Background)])</onunload>
+-    <onunload condition="!String.IsEmpty(Container(300).ListItem.Property(backgroundPlaylist))">Skin.SetString(FocusedMenu.BackgroundPlaylist,$INFO[Container(300).ListItem.Property(backgroundPlaylist)])</onunload>
++	<onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Container(300).ListItem.Property(Background))">Skin.SetString(FocusedMenu.Background,$INFO[Container(300).ListItem.Property(Background)])</onunload>
++    <onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Container(300).ListItem.Property(backgroundPlaylist))">Skin.SetString(FocusedMenu.BackgroundPlaylist,$INFO[Container(300).ListItem.Property(backgroundPlaylist)])</onunload>
+ 	
+ 	<!-- Clear TMDbHelper widgetcontainer id -->
+ 	<onunload condition="Skin.HasSetting(Enable.TMDbHelper)">ClearProperty(TMDbHelper.WidgetContainer,home)</onunload>
+ 	
+ 	<!-- Remember what the focused control is -->
+-	<onunload condition="Skin.HasSetting(RememberHomeControl)">Skin.SetString(FocusedHomeControl,$INFO[System.CurrentControlID])</onunload>
++	<onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + Skin.HasSetting(RememberHomeControl)">Skin.SetString(FocusedHomeControl,$INFO[System.CurrentControlID])</onunload>
+ 	
+ 	<defaultcontrol>300</defaultcontrol>
+ 	<controls>
+diff --git a/1080i/MyVideoNav.xml b/1080i/MyVideoNav.xml
+index 80aa871b..431efd63 100644
+--- a/1080i/MyVideoNav.xml
++++ b/1080i/MyVideoNav.xml
+@@ -7,8 +7,8 @@
+ 	<onload>ClearProperty(SingleSearchCalledInfo)</onload>
+ 	<onload>ClearProperty(InfoCalledGeneralSearch)</onload>
+ 	<onload>ClearProperty(InfoCalledSingleSearch)</onload>
+-	<onload>Skin.Reset(CustomSearchTerm)</onload>
+-	<onload>Skin.Reset(SingleSearchTerm)</onload>
++	<onload condition="!String.IsEmpty(Skin.String(CustomSearchTerm))">Skin.Reset(CustomSearchTerm)</onload>
++	<onload condition="!String.IsEmpty(Skin.String(SingleSearchTerm))">Skin.Reset(SingleSearchTerm)</onload>
+ 	<onload>ClearProperty(MediaMenu,Home)</onload>
+ 	<onload>ClearProperty(gallery)</onload>
+     <onload condition="System.AddonIsEnabled(script.skin.info.service) + String.IsEmpty(Window(home).Property(skininfos_daemon_running))">RunScript(script.skin.info.service)</onload>
+@@ -18,8 +18,8 @@
+ 	<onunload>ClearProperty(SingleSearchCalledInfo)</onunload>
+ 	<onunload>ClearProperty(InfoCalledGeneralSearch)</onunload>
+ 	<onunload>ClearProperty(InfoCalledSingleSearch)</onunload>
+-	<onunload>Skin.Reset(CustomSearchTerm)</onunload>
+-	<onunload>Skin.Reset(SingleSearchTerm)</onunload>
++	<onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Skin.String(CustomSearchTerm))">Skin.Reset(CustomSearchTerm)</onunload>
++	<onunload condition="[!System.AddonIsEnabled(service.sc.profilesync) | String.IsEmpty(Window(Home).Property(Amber.ShuttingDown))] + !String.IsEmpty(Skin.String(SingleSearchTerm))">Skin.Reset(SingleSearchTerm)</onunload>
+ 	<onunload>ClearProperty(gallery)</onunload>
+ 	<menucontrol>9000</menucontrol>
+ 	<controls>
+@@ -382,4 +382,4 @@
+ 		</control>
+         <include condition="Skin.HasSetting(Show.EHJumpToLetter)">ScriptJumpToLetter</include>
+ 	</controls>
+-</window>
+\ No newline at end of file
++</window>

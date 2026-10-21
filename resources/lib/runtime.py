@@ -3,18 +3,17 @@
 import json
 from pathlib import Path
 import time
-from threading import Event
 import xml.etree.ElementTree as ET
 
 import xbmc
 import xbmcaddon
-import xbmcgui
 import xbmcvfs
 
 from .adapter import Adapter
 from .engine import Engine
 from .kra import Kra
 from .local import identity, read, write
+from .lifecycle import ProfileMonitor, SyncStopped
 from .policy import SC_SETTINGS, NEXT_SETTINGS, KODI_SETTINGS, PROFILE_SETTINGS, shared_setting
 from .worker import Worker
 from .schedule import Schedule
@@ -31,43 +30,26 @@ def rpc(method, params=None):
     return reply.get("result")
 
 
-class ProfileMonitor(xbmc.Monitor):
-    """Callbacks only queue work; they never touch storage or the network."""
-
-    def __init__(self):
-        super().__init__()
-        self.pending = Event()
-        self.settings_changed = Event()
-
-    def onNotification(self, sender, method, data):
-        if method in ("Player.OnStop", "System.OnWake"):
-            self.pending.set()
-
-    def onScreensaverDeactivated(self):
-        self.pending.set()
-
-    def onDPMSDeactivated(self):
-        self.pending.set()
-
-    def onSettingsChanged(self):
-        self.settings_changed.set()
-        self.pending.set()
-
-
 class Runtime:
-    def __init__(self):
+    def __init__(self, monitor=None):
+        self.monitor = monitor or ProfileMonitor()
+        self.monitor.check_running()
         self.addon = xbmcaddon.Addon("service.sc.profilesync")
         self.directory = Path(xbmcvfs.translatePath(self.addon.getAddonInfo("profile")))
         self.directory.mkdir(parents=True, exist_ok=True)
         sc = xbmcaddon.Addon("plugin.video.stream-cinema")
-        self.window = xbmcgui.Window(10000)
-        self.monitor = ProfileMonitor()
+        self.window = self.monitor.window
         self.setting_ids = {}
         self.database = Path(xbmcvfs.translatePath(sc.getAddonInfo("profile"))) / "storage.db"
         self.skin_settings = Path(xbmcvfs.translatePath("special://profile/addon_data/skin.amber/settings.xml"))
         self.core_settings = Path(xbmcvfs.translatePath("special://profile/guisettings.xml"))
 
+    def call_rpc(self, method, params=None):
+        self.monitor.check_running()
+        return rpc(method, params)
+
     def preferences(self):
+        self.monitor.check_running()
         # Kodi reloads only the first registered Addon handle after another script
         # saves settings. New handles read the current file and preserve local edits.
         sc = xbmcaddon.Addon("plugin.video.stream-cinema")
@@ -84,11 +66,12 @@ class Runtime:
         }
         for key in KODI_SETTINGS:
             try:
-                result["kodi"][key] = rpc("Settings.GetSettingValue", {"setting": key})["value"]
+                result["kodi"][key] = self.call_rpc("Settings.GetSettingValue", {"setting": key})["value"]
             except ValueError:
                 pass
         if self.skin_settings.exists():
             for node in ET.parse(self.skin_settings).getroot().findall("setting"):
+                self.monitor.check_running()
                 key = node.get("id", "")
                 value = node.text or ""
                 if not shared_setting("skin.amber", key):
@@ -116,11 +99,12 @@ class Runtime:
         return self.setting_ids[key]
 
     def apply_preference(self, addon, key, value):
+        self.monitor.check_running()
         if not shared_setting(addon, key):
             return False
         if addon == "kodi":
             try:
-                rpc("Settings.GetSettingValue", {"setting": key})
+                self.call_rpc("Settings.GetSettingValue", {"setting": key})
                 if (
                     key
                     in (
@@ -132,10 +116,10 @@ class Runtime:
                     )
                     and value
                 ):
-                    resource = rpc("Addons.GetAddonDetails", {"addonid": value, "properties": ["enabled"]})
+                    resource = self.call_rpc("Addons.GetAddonDetails", {"addonid": value, "properties": ["enabled"]})
                     if not resource["addon"]["enabled"]:
                         return False
-                return rpc("Settings.SetSettingValue", {"setting": key, "value": value}) is True
+                return self.call_rpc("Settings.SetSettingValue", {"setting": key, "value": value}) is True
             except ValueError:
                 return False
         if addon == "skin.amber":
@@ -163,6 +147,7 @@ class Runtime:
         return target.getSetting(key) == str(value)
 
     def persist_preferences(self, preferences):
+        self.monitor.check_running()
         # Kodi 21's JSON-RPC setter does not save guisettings.xml. This idempotent
         # private skin flag invokes Kodi's native Save without changing the UI.
         xbmc.executebuiltin("Skin.SetBool(scprofilesync.internal.settingssaved,false)", True)
@@ -181,6 +166,7 @@ class Runtime:
         xbmcaddon.Addon("plugin.video.stream-cinema").setSetting(key, value)
 
     def invalidate(self, namespaces):
+        self.monitor.check_running()
         token = str(time.time_ns())
         for namespace in namespaces:
             self.window.setProperty("sc.profile.sync." + namespace, token)
@@ -189,7 +175,15 @@ class Runtime:
         write(self.directory / "status.json", value)
 
     def run(self):
-        if self.monitor.waitForAbort(12):
+        try:
+            self._run()
+        except SyncStopped:
+            pass
+        finally:
+            xbmc.log("[service.sc.profilesync] Worker stopped", xbmc.LOGINFO)
+
+    def _run(self):
+        if self.monitor.wait_for_stop(12):
             return
         device = identity(self.directory)
         try:
@@ -205,55 +199,64 @@ class Runtime:
         worker = Worker(
             engine,
             adapter,
-            Kra(self.get_sc_setting, self.set_sc_setting),
+            Kra(self.get_sc_setting, self.set_sc_setting, self.monitor.check_running, self.monitor.wait_for_stop),
             self.directory / "state.json",
             playing=lambda: bool(xbmc.Player().isPlaying()),
             status=self.status,
+            check_running=self.monitor.check_running,
         )
         schedule = Schedule()
         subtitles = SubtitleService(
-            rpc,
+            self.call_rpc,
             lambda: xbmcaddon.Addon("service.sc.profilesync").getSetting("hide_subtitles_for_czech_audio") != "false",
         )
-        subtitles.start()
-        self.monitor.settings_changed.set()
-        while not self.monitor.abortRequested():
-            try:
-                if self.monitor.settings_changed.is_set():
-                    self.monitor.settings_changed.clear()
-                    schedule.configure(
-                        self.addon.getSetting("local_interval"), self.addon.getSetting("remote_interval")
-                    )
-                if self.monitor.pending.is_set():
-                    self.monitor.pending.clear()
-                    # Allow the playback addon to finish persisting its Stop callback.
-                    schedule.request(delay=2)
-                if self.window.getProperty("sc.profile.sync.request"):
-                    self.window.clearProperty("sc.profile.sync.request")
-                    schedule.request()
-                capture, network = schedule.take()
-                if self.database.exists() and self.addon.getSetting("enabled") != "false":
-                    if network:
-                        worker.sync()
-                        schedule.success()
-                    elif capture:
-                        worker.capture()
-            except Exception as error:
-                # Exception messages may contain private URLs; report only the class.
-                self.status(
-                    {
-                        "ok": False,
-                        "error": type(error).__name__,
-                        "retry_seconds": schedule.failure(),
-                        "pending_upload": engine.dirty,
-                    }
+        try:
+            subtitles.start()
+            self.monitor.settings_changed.set()
+            while not self.monitor.stopping():
+                self._cycle(schedule, worker, engine)
+                # No database/settings polling here: Schedule owns capture cadence.
+                if self.monitor.wait_for_stop(1):
+                    break
+        finally:
+            subtitles.close()
+
+    def _cycle(self, schedule, worker, engine):
+        try:
+            self.monitor.check_running()
+            if self.monitor.settings_changed.is_set():
+                self.monitor.settings_changed.clear()
+                schedule.configure(
+                    self.addon.getSetting("local_interval"), self.addon.getSetting("remote_interval")
                 )
-                xbmc.log("[service.sc.profilesync] Sync deferred: " + type(error).__name__, xbmc.LOGWARNING)
-                worker.save()
-            # This wait checks only flags; database/settings snapshots follow Schedule.
-            if self.monitor.waitForAbort(1):
-                break
-        subtitles.close()
+            if self.monitor.pending.is_set():
+                self.monitor.pending.clear()
+                # Allow the playback addon to finish persisting its Stop callback.
+                schedule.request(delay=2)
+            if self.window.getProperty("sc.profile.sync.request"):
+                self.window.clearProperty("sc.profile.sync.request")
+                schedule.request()
+            capture, network = schedule.take()
+            if self.database.exists() and self.addon.getSetting("enabled") != "false":
+                if network:
+                    worker.sync()
+                    schedule.success()
+                elif capture:
+                    worker.capture()
+        except SyncStopped:
+            raise
+        except Exception as error:
+            # Exception messages may contain private URLs; report only the class.
+            self.status(
+                {
+                    "ok": False,
+                    "error": type(error).__name__,
+                    "retry_seconds": schedule.failure(),
+                    "pending_upload": engine.dirty,
+                }
+            )
+            xbmc.log("[service.sc.profilesync] Sync deferred: " + type(error).__name__, xbmc.LOGWARNING)
+            worker.save()
 
 
 def saved_value_matches(text, value):

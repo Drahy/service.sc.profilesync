@@ -1,6 +1,8 @@
 """Apply language choices independently of network synchronization."""
 
 from threading import Event, Thread
+
+from .cancellation import SyncStopped
 import time
 
 import xbmc
@@ -79,11 +81,20 @@ class SubtitleController:
 
 
 class SubtitleMonitor(xbmc.Monitor):
-    def __init__(self, pending, restart, stopped):
+    def __init__(self, pending, restart, stopped, closed=None):
         super().__init__()
         self.pending, self.restart, self.stopped = pending, restart, stopped
+        self.closed = closed
 
     def onNotification(self, sender, method, data):
+        if self.closed is not None and self.closed.is_set():
+            return
+        if method == "System.OnQuit" and self.closed is not None:
+            self.closed.set()
+            self.stopped.set()
+            self.pending.clear()
+            self.restart.clear()
+            return
         if method in ("Player.OnPlay", "Player.OnAVStart"):
             self.stopped.clear()
             self.restart.set()
@@ -112,8 +123,19 @@ class SubtitleService:
     def run(self):
         # Deliver notifications on this thread independently of network waits.
         # Avoid registering another Player callback object during Stop cleanup.
-        monitor = SubtitleMonitor(self.pending, self.restart, self.stopped)
+        monitor = SubtitleMonitor(self.pending, self.restart, self.stopped, self.closed)
         settling = []
+        try:
+            self._watch(monitor, settling)
+        finally:
+            self.closed.set()
+            # Kodi clears only the invoker thread's queue at interpreter exit.
+            # Dispatch this worker's queued notifications before its thread state
+            # disappears, including those skipped by waitForAbort on native abort.
+            xbmc.sleep(1)
+            del monitor
+
+    def _watch(self, monitor, settling):
         while not self.closed.is_set() and not monitor.waitForAbort(0.5):
             if self.stopped.is_set():
                 settling.clear()
@@ -133,6 +155,8 @@ class SubtitleService:
             try:
                 if self.enabled():
                     self.controller.apply(reset)
+            except SyncStopped:
+                break
             except (ValueError, KeyError, RuntimeError):
                 # A player may disappear between GetActivePlayers and GetProperties.
                 pass
