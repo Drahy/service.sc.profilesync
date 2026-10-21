@@ -38,7 +38,11 @@ def runtime(monkeypatch, tmp_path):
             values[self.addon] = copy.deepcopy(self.snapshot)
 
     monkeypatch.setitem(sys.modules, "xbmcaddon", SimpleNamespace(Addon=Addon))
-    monkeypatch.setitem(sys.modules, "xbmc", SimpleNamespace(executeJSONRPC=lambda raw: json.dumps({"error": {}})))
+    monkeypatch.setitem(
+        sys.modules,
+        "xbmc",
+        SimpleNamespace(Monitor=type("Monitor", (), {}), executeJSONRPC=lambda raw: json.dumps({"error": {}})),
+    )
     monkeypatch.setitem(sys.modules, "xbmcgui", SimpleNamespace())
     monkeypatch.setitem(sys.modules, "xbmcvfs", SimpleNamespace())
     monkeypatch.delitem(sys.modules, "resources.lib.runtime", raising=False)
@@ -77,3 +81,20 @@ def test_future_setting_is_retained_without_writing_an_unsupported_version(monke
     assert "autoPlayCreditsTime" not in client.preferences()["service.upnext"]
     assert not client.apply_preference("service.upnext", "autoPlayCreditsTime", "0")
     assert "autoPlayCreditsTime" not in values["service.upnext"]
+
+
+def test_monitor_callbacks_queue_work_without_running_the_worker(monkeypatch, tmp_path):
+    runtime(monkeypatch, tmp_path)
+    monitor = sys.modules["resources.lib.runtime"].ProfileMonitor()
+    monitor.onNotification("xbmc", "Player.OnPlay", "{}")
+    assert not monitor.pending.is_set()
+    for method in ("Player.OnStop", "System.OnWake"):
+        monitor.onNotification("xbmc", method, "{}")
+        assert monitor.pending.is_set()
+        monitor.pending.clear()
+    for callback in (monitor.onScreensaverDeactivated, monitor.onDPMSDeactivated):
+        callback()
+        assert monitor.pending.is_set()
+        monitor.pending.clear()
+    monitor.onSettingsChanged()
+    assert monitor.settings_changed.is_set() and monitor.pending.is_set()

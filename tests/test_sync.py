@@ -247,6 +247,44 @@ def test_two_devices_converge_without_echo_uploads(tmp_path):
     assert a.adapter.snapshot()[0][KEY]["watched"]
 
 
+def test_new_device_restores_existing_cloud_preferences_instead_of_its_defaults(tmp_path):
+    backend = Backend()
+    a, _, _ = replica(tmp_path, DEVICE_A, backend, preferences={"service.upnext": {"autoPlaySeasonTime": "35"}})
+    a.sync()
+    b, _, preferences = replica(
+        tmp_path, DEVICE_B, backend, preferences={"service.upnext": {"autoPlaySeasonTime": "30"}}
+    )
+    b.sync()
+    assert preferences["service.upnext"]["autoPlaySeasonTime"] == "35"
+    a.sync()
+    assert a.adapter.snapshot()[0]["setting|service.upnext|autoPlaySeasonTime"] == "35"
+
+
+def test_new_device_restores_legacy_zero_clock_cloud_preferences(tmp_path):
+    backend = Backend()
+    key = "setting|service.upnext|autoPlaySeasonTime"
+    name = "kodi-profile-v1-" + DEVICE_A + "-000000000001.json"
+    backend.files[name] = encode(DEVICE_A, 1, {key: record("35", stamp=0, counter=0)})
+    b, _, preferences = replica(
+        tmp_path, DEVICE_B, backend, preferences={"service.upnext": {"autoPlaySeasonTime": "30"}}
+    )
+    b.sync()
+    assert preferences["service.upnext"]["autoPlaySeasonTime"] == "35"
+
+
+def test_explicit_local_preference_change_before_first_connection_is_preserved(tmp_path):
+    backend = Backend()
+    a, _, _ = replica(tmp_path, DEVICE_A, backend, preferences={"service.upnext": {"autoPlaySeasonTime": "35"}})
+    a.sync()
+    b, _, preferences = replica(
+        tmp_path, DEVICE_B, backend, preferences={"service.upnext": {"autoPlaySeasonTime": "30"}}
+    )
+    b.capture()
+    preferences["service.upnext"]["autoPlaySeasonTime"] = "40"
+    b.sync()
+    assert preferences["service.upnext"]["autoPlaySeasonTime"] == "40"
+
+
 def test_offline_edits_survive_a_restart(tmp_path):
     backend = Backend()
     worker, path, prefs = replica(tmp_path, DEVICE_A, backend, {"SCKODIItem-42": {"watched:1:2": 25}})

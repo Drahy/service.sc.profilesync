@@ -2,6 +2,8 @@
 <settings>
   <category label="Private profile synchronization">
     <setting id="enabled" label="Synchronize preferences and viewing history" type="bool" default="true" />
+    <setting id="local_interval" label="Local change check (seconds)" type="slider" default="15" range="5,5,120" option="int" />
+    <setting id="remote_interval" label="Cloud synchronization (seconds)" type="slider" default="60" range="30,30,300" option="int" />
     <setting label="Synchronize now" type="action" action="RunScript(service.sc.profilesync)" option="close" />
     <setting label="Uses the existing Stream Cinema Kra account. Hardware and account settings stay local." type="lsep" />
   </category>

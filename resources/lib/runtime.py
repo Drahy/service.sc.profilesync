@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import time
+from threading import Event
 import xml.etree.ElementTree as ET
 
 import xbmc
@@ -16,6 +17,7 @@ from .kra import Kra
 from .local import identity, read, write
 from .policy import SC_SETTINGS, NEXT_SETTINGS, KODI_SETTINGS, shared_setting
 from .worker import Worker
+from .schedule import Schedule
 
 
 def rpc(method, params=None):
@@ -28,6 +30,29 @@ def rpc(method, params=None):
     return reply.get("result")
 
 
+class ProfileMonitor(xbmc.Monitor):
+    """Callbacks only queue work; they never touch storage or the network."""
+
+    def __init__(self):
+        super().__init__()
+        self.pending = Event()
+        self.settings_changed = Event()
+
+    def onNotification(self, sender, method, data):
+        if method in ("Player.OnStop", "System.OnWake"):
+            self.pending.set()
+
+    def onScreensaverDeactivated(self):
+        self.pending.set()
+
+    def onDPMSDeactivated(self):
+        self.pending.set()
+
+    def onSettingsChanged(self):
+        self.settings_changed.set()
+        self.pending.set()
+
+
 class Runtime:
     def __init__(self):
         self.addon = xbmcaddon.Addon("service.sc.profilesync")
@@ -35,7 +60,7 @@ class Runtime:
         self.directory.mkdir(parents=True, exist_ok=True)
         sc = xbmcaddon.Addon("plugin.video.stream-cinema")
         self.window = xbmcgui.Window(10000)
-        self.monitor = xbmc.Monitor()
+        self.monitor = ProfileMonitor()
         self.setting_ids = {}
         self.database = Path(xbmcvfs.translatePath(sc.getAddonInfo("profile"))) / "storage.db"
         self.skin_settings = Path(xbmcvfs.translatePath("special://profile/addon_data/skin.amber/settings.xml"))
@@ -147,31 +172,41 @@ class Runtime:
             playing=lambda: bool(xbmc.Player().isPlaying()),
             status=self.status,
         )
-        last_network = 0
-        backoff = 20
+        schedule = Schedule()
+        self.monitor.settings_changed.set()
         while not self.monitor.abortRequested():
             try:
+                if self.monitor.settings_changed.is_set():
+                    self.monitor.settings_changed.clear()
+                    schedule.configure(
+                        self.addon.getSetting("local_interval"), self.addon.getSetting("remote_interval")
+                    )
+                if self.monitor.pending.is_set():
+                    self.monitor.pending.clear()
+                    # Allow the playback addon to finish persisting its Stop callback.
+                    schedule.request(delay=2)
+                if self.window.getProperty("sc.profile.sync.request"):
+                    self.window.clearProperty("sc.profile.sync.request")
+                    schedule.request()
+                capture, network = schedule.take()
                 if self.database.exists() and self.addon.getSetting("enabled") != "false":
-                    worker.capture()
-                    requested = self.window.getProperty("sc.profile.sync.request")
-                    if requested or time.monotonic() - last_network >= backoff:
-                        self.window.clearProperty("sc.profile.sync.request")
-                        last_network = time.monotonic()
+                    if network:
                         worker.sync()
-                        backoff = 20
+                        schedule.success()
+                    elif capture:
+                        worker.capture()
             except Exception as error:
                 # Exception messages may contain private URLs; report only the class.
                 self.status(
                     {
                         "ok": False,
                         "error": type(error).__name__,
-                        "retry_seconds": min(backoff * 2, 180),
+                        "retry_seconds": schedule.failure(),
                         "pending_upload": engine.dirty,
                     }
                 )
                 xbmc.log("[service.sc.profilesync] Sync deferred: " + type(error).__name__, xbmc.LOGWARNING)
-                backoff = min(backoff * 2, 180)
-                last_network = time.monotonic()
                 worker.save()
-            if self.monitor.waitForAbort(2):
+            # This wait checks only flags; database/settings snapshots follow Schedule.
+            if self.monitor.waitForAbort(1):
                 break

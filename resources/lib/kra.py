@@ -23,7 +23,7 @@ class Kra:
         self.get = get_setting
         self.set = set_setting or (lambda key, value: None)
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "SC-Profile-Sync/0.1.0"
+        self.session.headers["User-Agent"] = "SC-Profile-Sync/0.1.1"
         self.token = self.get("kraska.token") or ""
 
     def login(self):

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="repository.drahy.scprofilesync" name="Drahy's SC Profile Sync Repository" version="1.0.0" provider-name="Drahy">
+  <requires><import addon="xbmc.addon" version="12.0.0" /></requires>
+  <extension point="xbmc.addon.repository">
+    <dir>
+      <info>https://raw.githubusercontent.com/Drahy/service.sc.profilesync/main/repo/addons.xml</info>
+      <checksum verify="sha256">https://raw.githubusercontent.com/Drahy/service.sc.profilesync/main/repo/addons.xml.sha256</checksum>
+      <datadir>https://raw.githubusercontent.com/Drahy/service.sc.profilesync/main/repo/</datadir>
+      <hashes>sha256</hashes>
+    </dir>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Install and update SC Profile Sync.</summary>
+    <description lang="en_GB">The Kodi repository for SC Profile Sync. Stream Cinema and other dependencies come from their existing repositories.</description>
+    <platform>all</platform>
+    <license>GPL-3.0-only</license>
+    <source>https://github.com/Drahy/service.sc.profilesync</source>
+  </extension>
+</addon>
