@@ -14,7 +14,9 @@ The updated navigation patch restores the last local episode folder and selected
 
 For 0.1.5, recopy the updated `sc_bridge.py` as `profile_sync.py`: repeated readers now share one independent merge snapshot for the same cached data object and reuse a Home-window handle. Revision checks still run on every read, so remote updates remain immediately visible. Loads and committed saves replace the snapshot; nested unsaved edits still merge with current remote data.
 
-Keep the locally patched Stream Cinema and helper on manual updates. Reapply these patches to a reviewed future build before enabling it. Up Next uses the upstream 1.2.1 code, including the accepted replacement-playback fix in upstream commit `42184af3d4d2`; the optional credits-autoplay change in PR 336 is not installed.
+Keep the locally patched Stream Cinema and helper on manual updates. Reapply these patches to a reviewed future build before enabling it. Up Next uses the unmodified official [v1.2.3 tag](https://github.com/im85288/service.upnext/tree/v1.2.3), commit `50ced632397569b7675f37346198900d56c5832f`, with no additional local source changes. Replace older patched Up Next files with the complete official package when updating it; SC Profile Sync does not install that package.
+
+The shared Up Next preferences retain compact mode (`simpleMode=0`), allow Back to hide the popup while playback continues (`stopAfterClose=false`), and disable early credits autoplay (`autoPlayCreditsTime=0`). Manual selection of the next episode remains available. Per-addon update policies stay local to each device.
 
 For the integration and navigation tests, set `SC_STORAGE_CANDIDATE` to the patched SC `resources/lib/common` directory, then run `pytest -q tests`.
 
