@@ -12,9 +12,9 @@ import pytest
 
 
 from resources.lib import sc_browse
+from integration import sc_episode_return
 
 SOURCE = os.environ.get("SC_STORAGE_CANDIDATE")
-pytestmark = pytest.mark.skipif(not SOURCE, reason="Set SC_STORAGE_CANDIDATE to the patched SC common directory")
 RUN = Path(SOURCE or ".").parent
 ADDON_ID = "plugin.video.stream-cinema"
 
@@ -63,6 +63,7 @@ def environment(tmp_path, monkeypatch):
         setFocusId=lambda number: setattr(context, "focused", number),
         getProperty=lambda key: context.properties.get(key, ""),
         clearProperty=lambda key: context.properties.pop(key, None),
+        setProperty=lambda key, value: context.properties.__setitem__(key, value),
     )
 
     def label(name):
@@ -97,6 +98,7 @@ def environment(tmp_path, monkeypatch):
     constants.ADDON = SimpleNamespace(getAddonInfo=lambda name: str(tmp_path))
     common = ModuleType("resources.lib.common")
     common.resume_browse = sc_browse
+    common.episode_return = sc_episode_return
     monkeypatch.setitem(sys.modules, "resources.lib.common", common)
     logger = ModuleType("resources.lib.common.logger")
     logger.debug = lambda *args: None
@@ -108,7 +110,7 @@ def environment(tmp_path, monkeypatch):
         ("resources.lib.common.logger", logger),
     ]:
         monkeypatch.setitem(sys.modules, name, value)
-    spec = importlib.util.spec_from_file_location("navigation_under_test", RUN / "services/navigation.py")
+    spec = importlib.util.spec_from_file_location("navigation_under_test", Path(__file__).parents[1] / "integration/sc_navigation.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.os = SimpleNamespace(
@@ -225,14 +227,14 @@ def test_normal_exit_through_home_retains_the_last_episode(environment):
     assert env.make().pending
 
 
-def test_crash_after_leaving_the_addon_does_not_restore_inactive_context(environment):
+def test_crash_after_leaving_the_addon_still_restores_last_episode(environment):
     env = environment
     worker = env.make()
     worker.capture()
     env.context.window, env.context.folder = 10000, ""
     worker.capture()
     env.context.pid += 1
-    assert env.make().pending is False
+    assert env.make().pending is True
 
 
 def test_normal_shutdown_does_not_restore_non_episode_folders(environment):
@@ -388,6 +390,7 @@ def test_restore_marker_does_not_contaminate_normal_folder(environment):
 
 
 @pytest.mark.parametrize("restore,enabled,expected", [(True, True, False), (False, True, True), (False, False, False)])
+@pytest.mark.skipif(not SOURCE, reason="Set SC_STORAGE_CANDIDATE to the matching SC common directory")
 def test_existing_autoplay_is_only_suppressed_for_recovery(restore, enabled, expected):
     tree = ast.parse((RUN / "streamcinema.py").read_text(encoding="utf-8"))
     conditions = [
@@ -455,4 +458,100 @@ def test_last_seen_focus_recognizes_catalog_alias_and_parent_offset(environment)
     )
     assert worker.focus_requested()
     assert env.control.selected == 2
+    assert not env.context.commands
+
+
+def test_main_menu_does_not_replace_durable_episode_target(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    env.context.folder, env.context.key = uri('/'), uri('/Catalogue')
+    worker.capture()
+    assert worker.state['episode']['item'] == '/Play/123/36/8'
+    worker.run()
+    env.context.pid += 1
+    assert env.make().pending
+
+
+def test_wake_reopens_the_last_episode_from_another_addon_page(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    env.context.folder, env.context.key = uri('/Other/456'), uri('/FGet/456')
+    worker.capture()
+    env.monitor.navigation_wake = 1
+    worker.lifecycle()
+    worker.restore()
+    assert worker.pending and len(env.context.commands) == 1
+    assert 'PlayMedia' not in env.context.commands[0]
+
+
+def test_wake_does_not_interrupt_an_active_player(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    env.player.isPlayback = lambda: True
+    env.monitor.navigation_wake = 1
+    worker.lifecycle()
+    assert not worker.pending and not env.context.commands
+
+
+def test_android_interpreter_resume_rearms_episode_return(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    env.context.now += 25
+    worker.lifecycle()
+    assert worker.pending
+
+
+def test_leaving_addon_rearms_fresh_entry_without_changing_episode(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    env.context.properties[sc_episode_return.INSIDE_PROPERTY] = '1'
+    assert env.context.properties[sc_episode_return.INSIDE_PROPERTY] == '1'
+    env.context.window, env.context.folder = 10000, ''
+    worker.capture()
+    assert sc_episode_return.INSIDE_PROPERTY not in env.context.properties
+    assert worker.state['episode']['item'] == '/Play/123/36/8'
+
+
+def test_capture_does_not_consume_a_fresh_root_entry_before_the_plugin(environment):
+    env = environment
+    worker = env.make()
+    env.context.folder, env.context.key = uri('/'), uri('/Catalogue')
+    worker.capture()
+    assert sc_episode_return.INSIDE_PROPERTY not in env.context.properties
+
+
+def test_stale_season_labels_during_window_activation_do_not_consume_entry(environment):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    assert sc_episode_return.INSIDE_PROPERTY not in env.context.properties
+
+
+def test_fresh_entry_waits_for_directory_completion_before_navigation(environment):
+    env = environment
+    worker = env.make()
+    env.context.folder = uri('/')
+    env.context.properties[sc_episode_return.REQUEST_PROPERTY] = json.dumps({'target': {'id': '123', 'url': '/FGet/123/36', 'resume_episode': '8'}, 'expires': 90})
+    env.context.updating = True
+    assert worker.entry_requested() and not worker.pending
+    env.context.updating = False
+    assert worker.entry_requested() and worker.pending
+    assert not env.context.commands
+    worker.restore()
+    assert len(env.context.commands) == 1
+    assert 'PlayMedia' not in env.context.commands[0]
+
+
+@pytest.mark.parametrize('playing,expires', [(True, 90), (False, -1)])
+def test_entry_request_cannot_interrupt_video_or_run_after_expiry(environment, playing, expires):
+    env = environment
+    worker = env.make()
+    env.player.isPlayback = lambda: playing
+    env.context.properties[sc_episode_return.REQUEST_PROPERTY] = json.dumps({'target': {'id': '123', 'url': '/FGet/123/36', 'resume_episode': '8'}, 'expires': expires})
+    assert not worker.entry_requested() and not worker.pending
     assert not env.context.commands

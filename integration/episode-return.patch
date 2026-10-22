@@ -1,0 +1,60 @@
+--- a/resources/lib/streamcinema.py
++++ b/resources/lib/streamcinema.py
+@@ -25,6 +25,7 @@
+ from resources.lib.gui.item import SCItem, get_history_item_name, list_hp, SCLDir, SCUpNext, UserCancelledException
+ from resources.lib.common.storage import Storage, KodiViewModeDb, preferred_lang_list
+ from resources.lib.common import resume_browse
++from resources.lib.common import episode_return
+ from resources.lib.language import Strings
+ from resources.lib.params import params
+ from resources.lib.services.next_episodes import NextEp
+@@ -51,6 +52,15 @@
+ 
+         if SC.ITEM_URL in self.args:
+             self.url = self.args.get(SC.ITEM_URL)
++
++        entry_target = episode_return.prepare_entry(self.args)
++        if entry_target:
++            self.succeeded = True
++            self.end_of_directory()
++            return
++        if (xbmcgui.getCurrentWindowId() == 10025 and 'widget' not in self.args
++                and self.args.get('action') != 'cmd'):
++            home_win.setProperty(episode_return.INSIDE_PROPERTY, '1')
+ 
+         # REMOVED: Redirect počas playbacku už nie je potrebný s reuselanguageinvoker=true
+         # Umožňuje používateľom prepínať epizódy počas prehrávania
+--- a/resources/lib/services/monitor.py
++++ b/resources/lib/services/monitor.py
+@@ -31,6 +31,7 @@
+         self.sort_method = self.SORT_METHOD_NONE
+         self.sort_order = self.SORT_ASC
+         self.last_url = None
++        self.navigation_wake = 0
+         self.filter = {}
+         self.callback = {
+             'Player.OnAVStart': self.PlayerOnAVStart,
+@@ -55,6 +56,7 @@
+     def onScreensaverDeactivated(self):
+         debug('monitor onScreensaverDeactivated')
+         self.is_screensaver = False
++        self.navigation_wake += 1
+ 
+     def onDPMSActivated(self):
+         debug('monitor onDPMSActivated')
+@@ -63,6 +65,7 @@
+     def onDPMSDeactivated(self):
+         debug('monitor onDPMSDeactivated')
+         self.is_DPMS = False
++        self.navigation_wake += 1
+ 
+     def onScanStarted(self, library):
+         debug('monitor onScanStarted {}'.format(library))
+@@ -87,6 +90,7 @@
+ 
+     def onWake(self, data):
+         self.is_DPMS = False
++        self.navigation_wake += 1
+ 
+     def PlayerOnAVStart(self, data):
+         debug('Monitor PlayerOnAVStart')

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — Stream Cinema integration
+
+- **Return to the watched episode on every fresh entry:** Open the last available shared season and select its exact watched episode after Kodi startup, a fresh Stream Cinema entry or wake, without starting playback. Retain a separate local episode checkpoint while browsing menus, preserve normal Back navigation and avoid interrupting an existing player. Install the companion Stream Cinema integration files explicitly; the released SC Profile Sync package remains unchanged.
+
 ## 0.1.5 — 2026-10-21
 
 - **Reopen the last episode folder promptly after Exit:** The updated Stream Cinema integration restores the last local season and selected episode after a normal Kodi exit, including Exit through Home, without starting playback. Reuse merge snapshots and the Home window during profile reads, and prepare directory metadata without GUI locks. Keep active-context crash recovery and shared Last seen history separate; reapply the updated integration files to existing Stream Cinema installations.
