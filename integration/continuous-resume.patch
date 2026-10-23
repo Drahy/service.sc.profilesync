@@ -1,0 +1,131 @@
+--- a/resources/lib/services/monitor.py
++++ b/resources/lib/services/monitor.py
+@@ -2,6 +2,7 @@
+ 
+ from xbmc import Monitor as KMonitor
+ from resources.lib.common.logger import debug
++from resources.lib.common import continuous_resume
+ from resources.lib.common.storage import KodiViewModeDb
+ from resources.lib.constants import ADDON_ID
+ from resources.lib.kodiutils import encode, decode, exec_build_in, create_plugin_url
+@@ -127,7 +128,7 @@
+             # Použijeme PlayMedia priamo - Kodi automaticky zastaví staré video
+             # a spustí nové (bez dvoch busydialogov ktoré spôsobujú crash)
+             debug('Monitor: Spúšťam novú epizódu (Kodi automaticky zastaví staré video)')
+-            exec_build_in('PlayMedia({})'.format(create_plugin_url(loads(b64decode(data)))))
++            exec_build_in(continuous_resume.play_command(loads(b64decode(data)), create_plugin_url))
+             pass
+         # if sender == ADDON_ID and method == 'Other.List.Sort':
+         #     from base64 import b64decode
+--- a/resources/lib/gui/item.py
++++ b/resources/lib/gui/item.py
+@@ -13,6 +13,7 @@
+ from resources.lib.common.lists import List, SCKODIItem
+ from resources.lib.common.logger import info, debug as log_debug
+ from resources.lib.common.storage import preferred_lang_list
++from resources.lib.common import continuous_resume
+ from resources.lib.constants import ADDON_ID, SC, GUI
+ from resources.lib.debug import try_catch
+ from resources.lib.gui import get_cond_visibility as gcv, home_win
+@@ -1514,6 +1515,8 @@
+                 except Exception as e:
+                     log_debug('subtitles load zlyhalo, pokracujem bez nich: {}'.format(e))
+ 
++        if not continuous_resume.prepare(self.item, self.data, self.params):
++            raise UserCancelledException('Next episode playback cancelled')
+         info('resolve: {}'.format(url))
+         if 'lid' in data:
+             lid = 'p-{}'.format(data.get('lid')) if parental_history() else data.get('lid')
+--- a/resources/language/resource.language.en_gb/strings.po
++++ b/resources/language/resource.language.en_gb/strings.po
+@@ -936,3 +936,28 @@
+ msgctxt "#30991"
+ msgid "Last seen"
+ msgstr "Last seen"
++
++msgctxt "#30992"
++msgid "Next episode"
++msgstr "Next episode"
++
++msgctxt "#30993"
++msgid "Play from beginning"
++msgstr "Play from beginning"
++
++msgctxt "#30994"
++msgid "Resume from {time}"
++msgstr "Resume from {time}"
++
++msgctxt "#30995"
++msgid "Starts from the beginning in {seconds} s."
++msgstr "Starts from the beginning in {seconds} s."
++
++msgctxt "#30996"
++msgid "Choose where to start this episode."
++msgstr "Choose where to start this episode."
++
++msgctxt "#30997"
++msgid "Cancel"
++msgstr "Cancel"
++
+--- a/resources/language/resource.language.cs_cz/strings.po
++++ b/resources/language/resource.language.cs_cz/strings.po
+@@ -938,3 +938,28 @@
+ msgctxt "#30991"
+ msgid "Last seen"
+ msgstr "Poslední sledované"
++
++msgctxt "#30992"
++msgid "Next episode"
++msgstr "Další díl"
++
++msgctxt "#30993"
++msgid "Play from beginning"
++msgstr "Přehrát od začátku"
++
++msgctxt "#30994"
++msgid "Resume from {time}"
++msgstr "Pokračovat od {time}"
++
++msgctxt "#30995"
++msgid "Starts from the beginning in {seconds} s."
++msgstr "Od začátku se spustí za {seconds} s."
++
++msgctxt "#30996"
++msgid "Choose where to start this episode."
++msgstr "Vyberte, odkud díl spustit."
++
++msgctxt "#30997"
++msgid "Cancel"
++msgstr "Zrušit"
++
+--- a/resources/language/resource.language.sk_sk/strings.po
++++ b/resources/language/resource.language.sk_sk/strings.po
+@@ -937,3 +937,28 @@
+ msgctxt "#30991"
+ msgid "Last seen"
+ msgstr "Posledné sledované"
++
++msgctxt "#30992"
++msgid "Next episode"
++msgstr "Ďalšia epizóda"
++
++msgctxt "#30993"
++msgid "Play from beginning"
++msgstr "Prehrať od začiatku"
++
++msgctxt "#30994"
++msgid "Resume from {time}"
++msgstr "Pokračovať od {time}"
++
++msgctxt "#30995"
++msgid "Starts from the beginning in {seconds} s."
++msgstr "Od začiatku sa spustí o {seconds} s."
++
++msgctxt "#30996"
++msgid "Choose where to start this episode."
++msgstr "Vyberte, odkiaľ epizódu spustiť."
++
++msgctxt "#30997"
++msgid "Cancel"
++msgstr "Zrušiť"
++

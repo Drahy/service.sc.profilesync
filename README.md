@@ -19,6 +19,8 @@ For live Stream Cinema cache refresh and exact Last seen season/episode navigati
 
 The latest optional SC integration also returns to the last available shared episode after Kodi startup, a fresh addon entry or wake, with that episode selected for manual playback. Browsing menus does not discard its separate local episode checkpoint. Install the integration files explicitly on each device; sharing viewing history does not distribute source patches.
 
+The optional integration also lets continuous playback through Up Next start an unfinished episode from the beginning after a five-second resume choice. Choose its saved time to resume, or cancel with Back/Stop. Manual playback keeps its existing behavior. This provider-side addition does not modify the official Up Next package.
+
 After installation from the repository, Kodi can discover future versions. Enable automatic updates for **SC Profile Sync** if desired. Keep separately patched SC/helper builds on manual updates until their integration has been reviewed. Installing only the standalone service ZIP does not register its update repository.
 
 The standalone service ZIP and SHA-256 checksums are also available under [Releases](https://github.com/Drahy/service.sc.profilesync/releases). Neither ZIP contains credentials or a personal history database.

@@ -20,6 +20,14 @@ Keep the locally patched Stream Cinema and helper on manual updates. Reapply the
 
 The shared Up Next preferences retain compact mode (`simpleMode=0`), allow Back to hide the popup while playback continues (`stopAfterClose=false`), and disable early credits autoplay (`autoPlayCreditsTime=0`). Manual selection of the next episode remains available. Per-addon update policies stay local to each device.
 
+## Bounded resume choice for continuous playback
+
+Apply `continuous-resume.patch` from the Stream Cinema addon root, copy `sc_continuous_resume.py` to `resources/lib/common/continuous_resume.py`, and copy the contents of `skins/` to `resources/skins/`. Check the patch first with `git apply --check --ignore-space-change`; apply with `git apply --ignore-space-change`, then restart Kodi. The patch adds English, Czech and Slovak strings. It is a separate provider integration; the official Up Next package remains unchanged.
+
+When Up Next requests an episode with a valid saved position, Stream Cinema offers **Play from beginning**, **Resume from the saved time**, and **Cancel**. Five seconds after the choice becomes visible, inactivity selects the beginning. Arrow navigation pauses that deadline; Back, Stop and Cancel abandon the transition. Episodes without an unfinished position start immediately. Ordinary manual playback retains Kodi's existing resume behavior, and the choice never clears a saved position or changes when Up Next offers the following episode.
+
+The notification callback only marks the playback request. The plugin resolver owns the cancellable dialog, so the service callback remains free to handle shutdown. Kodi's `PlayMedia(...,noresume)` bypasses its earlier resume menu; an explicit resume choice is returned through the resolved item's video resume point. These companion files must be reapplied to a reviewed future Stream Cinema update; SC Profile Sync's released ZIP does not install them.
+
 For the integration and navigation tests, set `SC_STORAGE_CANDIDATE` to the patched SC `resources/lib/common` directory, then run `pytest -q tests`.
 
 ## Optional Amber shutdown guards
