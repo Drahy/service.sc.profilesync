@@ -16,9 +16,17 @@ This integration opens the last available shared Last seen season and selects it
 
 For 0.1.5, recopy the updated `sc_bridge.py` as `profile_sync.py`: repeated readers now share one independent merge snapshot for the same cached data object and reuse a Home-window handle. Revision checks still run on every read, so remote updates remain immediately visible. Loads and committed saves replace the snapshot; nested unsaved edits still merge with current remote data.
 
-Keep the locally patched Stream Cinema and helper on manual updates. Reapply these patches to a reviewed future build before enabling it. Up Next uses the unmodified official [v1.2.3 tag](https://github.com/im85288/service.upnext/tree/v1.2.3), commit `50ced632397569b7675f37346198900d56c5832f`, with no additional local source changes. Replace older patched Up Next files with the complete official package when updating it; SC Profile Sync does not install that package.
+Keep the locally patched Stream Cinema and helper on manual updates. Reapply these patches to a reviewed future build before enabling it. The current Up Next base is the official [v1.3.0 tag](https://github.com/im85288/service.upnext/tree/v1.3.0), commit `a7cadd1b0f706c41335323da30f2079e09d4f3a9`. Earlier Stop, Back, wake and credits fixes are already upstream and need no separate local copies. The optional playback-controls patch below is the only additional Up Next source change. SC Profile Sync does not install or update Up Next.
 
 The shared Up Next preferences retain compact mode (`simpleMode=0`), allow Back to hide the popup while playback continues (`stopAfterClose=false`), and disable early credits autoplay (`autoPlayCreditsTime=0`). Manual selection of the next episode remains available. Per-addon update policies stay local to each device.
+
+## Playback controls alongside Up Next
+
+Apply `upnext-playback-controls.patch` to the compatible official Up Next 1.3.0 addon root after checking it with `git apply --check --ignore-space-change`. Enable **Use OK/Select for playback controls** under Up Next's Interface settings. The change is proposed upstream in [PR #350](https://github.com/im85288/service.upnext/pull/350).
+
+Initial OK/Select opens Kodi's native playback controls while Up Next stays visible. An arrow first enters the existing Next/Close buttons; their actions stay unchanged. Closing the OSD returns to Up Next. Playback and its countdown pause together, and normal episode-end advancement remains active without selecting Next. Stop and Back retain their existing meaning; Still Watching still requires its normal confirmation. The option defaults to off and must be enabled explicitly on each device.
+
+This setting is currently local to each device and is not in SC Profile Sync 0.1.5's released preference allowlist. Keep the reviewed patch while it is pending upstream; an Up Next reinstall/update can replace it. The provider-side five-second resume choice below remains independent of this patch.
 
 ## Bounded resume choice for continuous playback
 
