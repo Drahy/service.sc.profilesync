@@ -38,6 +38,16 @@ The notification callback only marks the playback request. The plugin resolver o
 
 For the integration and navigation tests, set `SC_STORAGE_CANDIDATE` to the patched SC `resources/lib/common` directory, then run `pytest -q tests`.
 
+## Active Android proxy sessions
+
+The reviewed Android SC Helper 1.21 core expires a session 30 minutes after its last lookup. Sending the stream body does not refresh that timestamp, so cleanup can remove a session during playback and a later range/reopen can return a local 404.
+
+Apply `sc-helper-stream-leases.patch` to the already repaired helper addon root and copy `sc_stream_leases.py` there as `session_leases.py`. Check first with `git apply --check --ignore-space-change`, then apply with `git apply --ignore-space-change`. Install it after the existing cached-HEAD and explicit-Stop wrappers in both service entry points. Restart Kodi when playback is stopped. This targets the reviewed Android core with `session.is_expired()` and `session.touch()`; the opaque Windows core exposes a different interface and is outside this patch's compatibility scope.
+
+Each active GET holds its session until the request exits, including overlapping ranges. The final release refreshes normal idle expiry. There is no timer thread, polling or permanent cache, and unknown or idle-expired handles still return 404. Original responses, cached HEAD metadata, explicit Stop and upstream errors keep their existing handling. Existing expired links require a fresh Stream Cinema resolve; this does not revive them or change upstream authentication. The companion integration must be reapplied to a reviewed helper update and is not included in the released profile-sync ZIP.
+
+The isolated Android-core regression uses a loopback fixture and a shortened expiry: the unmodified core loses an active session and returns 404; the wrapper retains it, preserves cached HEAD and explicit Stop, and allows normal idle cleanup after the request finishes.
+
 ## Optional Amber shutdown guards
 
 The [Amber patch](amber-shutdown.patch) contains the companion changes tested with Amber 3.99.02 on Kodi 21.3. It avoids empty search resets and prevents unload hooks from scheduling deferred skin-setting saves after the profile service has begun stopping. Normal navigation retains its existing behavior; the guard is ignored while SC Profile Sync is disabled. Shutdown skips the final Home focus/background writes and retains their previously stored values. This does not affect Stream Cinema's separate season/episode navigation checkpoints.

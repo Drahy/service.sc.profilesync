@@ -1,0 +1,61 @@
+"""Keep a proxy session alive while an HTTP stream request still owns it."""
+import threading
+from urllib.parse import urlsplit
+
+
+class _StreamLease:
+    def __init__(self, session):
+        self.session = session
+        self.original_expired = session.is_expired
+        self.lock = threading.Lock()
+        self.requests = 0
+
+    def is_expired(self, age):
+        with self.lock:
+            return False if self.requests else self.original_expired(age)
+
+    def acquire(self):
+        with self.lock:
+            self.requests += 1
+
+    def release(self):
+        with self.lock:
+            # Resume/reconnect gets the normal idle interval after the last
+            # active request ends. Unused sessions retain their usual expiry.
+            self.session.touch()
+            self.requests -= 1
+
+
+def install_stream_leases(server, log=None):
+    """Preserve bounded idle cleanup, cached HEADs and explicit Stop handling."""
+    original = server.RequestHandlerClass
+    if getattr(original, '_sc_stream_leases', False):
+        return
+    install_lock = threading.Lock()
+
+    class LeasedStreamHandler(original):
+        _sc_stream_leases = True
+
+        def do_GET(self):
+            parsed = urlsplit(self.path)
+            if not parsed.path.startswith('/stream/'):
+                return super().do_GET()
+            session_id = parsed.path[len('/stream/'):]
+            session = self.session_manager.get(session_id)
+            if session is None:
+                return super().do_GET()
+            with install_lock:
+                lease = getattr(session, '_sc_stream_lease', None)
+                if lease is None:
+                    lease = _StreamLease(session)
+                    session.is_expired = lease.is_expired
+                    session._sc_stream_lease = lease
+                lease.acquire()
+            try:
+                return super().do_GET()
+            finally:
+                lease.release()
+
+    server.RequestHandlerClass = LeasedStreamHandler
+    if log is not None:
+        log('Active stream requests retain their proxy session; idle expiry is unchanged')
