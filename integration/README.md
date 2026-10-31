@@ -38,15 +38,17 @@ The notification callback only marks the playback request. The plugin resolver o
 
 For the integration and navigation tests, set `SC_STORAGE_CANDIDATE` to the patched SC `resources/lib/common` directory, then run `pytest -q tests`.
 
-## Active Android proxy sessions
+## Android proxy sessions and wake recovery
 
 The reviewed Android SC Helper 1.21 core expires a session 30 minutes after its last lookup. Sending the stream body does not refresh that timestamp, so cleanup can remove a session during playback and a later range/reopen can return a local 404.
 
-Apply `sc-helper-stream-leases.patch` to the already repaired helper addon root and copy `sc_stream_leases.py` there as `session_leases.py`. Check first with `git apply --check --ignore-space-change`, then apply with `git apply --ignore-space-change`. Install it after the existing cached-HEAD and explicit-Stop wrappers in both service entry points. Restart Kodi when playback is stopped. This targets the reviewed Android core with `session.is_expired()` and `session.touch()`; the opaque Windows core exposes a different interface and is outside this patch's compatibility scope.
+Apply `sc-helper-stream-leases.patch` to the already repaired helper addon root, and copy `sc_stream_leases.py`, `sc_wake_streams.py` and `sc_cancel_reads.py` there as `session_leases.py`, `wake_streams.py` and `cancel_reads.py`. The last file extends the existing Stop wrapper to cover pending stream HEAD requests. Check the patch first with `git apply --check --ignore-space-change`, then apply with `git apply --ignore-space-change`. Both service entry points install cached HEADs, active-stream leases, wake recovery and Stop cancellation in that order. Restart Kodi when playback is stopped. This targets the reviewed Android core with `session.is_expired()` and `session.touch()`; the opaque Windows core exposes a different interface and is outside this patch's compatibility scope.
 
-Each active GET holds its session until the request exits, including overlapping ranges. The final release refreshes normal idle expiry. There is no timer thread, polling or permanent cache, and unknown or idle-expired handles still return 404. Original responses, cached HEAD metadata, explicit Stop and upstream errors keep their existing handling. Existing expired links require a fresh Stream Cinema resolve; this does not revive them or change upstream authentication. The companion integration must be reapplied to a reviewed helper update and is not included in the released profile-sync ZIP.
+Each active request holds its session until it exits, including overlapping ranges. The final release refreshes normal idle expiry. For a known handle that expired while idle, the helper resolves the original item again with Stream Cinema's current account session, replaces the stale session behind the same local address and preserves the requested byte range. The lookup retains at most 128 item identifiers in memory and stores no account token; it has no timer thread, polling or permanent cache. Stop can interrupt both GET and HEAD while refresh is pending. Unknown handles and failed resolves still return 404 without changing account credentials.
 
-The isolated Android-core regression uses a loopback fixture and a shortened expiry: the unmodified core loses an active session and returns 404; the wrapper retains it, preserves cached HEAD and explicit Stop, and allows normal idle cleanup after the request finishes.
+Recovery requires a working Stream Cinema account session, network access and an item registered by this helper process before sleep. It cannot recover handles created before this integration was activated or after the helper itself has restarted and changed port; an expired login requires normal Stream Cinema reauthentication. It does not handle unrelated upstream stream errors. The companion integration must be reapplied to a reviewed helper update and is not included in the released profile-sync ZIP.
+
+Isolated tests on the reviewed Android core cover active-session retention and local 404 recovery for GET ranges and cached HEAD, including cancellation during a pending refresh. They use a loopback fixture and fake account tokens, without changing viewing history or contacting the provider.
 
 ## Optional Amber shutdown guards
 

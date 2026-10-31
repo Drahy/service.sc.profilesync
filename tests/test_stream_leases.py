@@ -1,5 +1,6 @@
 import threading
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -23,6 +24,9 @@ def handler(session, action):
         session_manager = SimpleNamespace(get=lambda key: session if key == 'example' else None)
 
         def do_GET(self):
+            return self._handle_stream(urlsplit(self.path))
+
+        def _handle_stream(self, parsed):
             return action()
 
     server = SimpleNamespace(RequestHandlerClass=Handler)

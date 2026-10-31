@@ -1,21 +1,25 @@
 diff --git a/service.py b/service.py
 --- a/service.py
 +++ b/service.py
-@@ -81,6 +81,8 @@ def main():
+@@ -72,6 +72,10 @@
+ def main():
+     server, session_manager = start_server(port=0)
      install_cached_heads(server, _log_head)
-     from cancel_reads import install_cancel_reads
-     install_cancel_reads(server, _log_head)
 +    from session_leases import install_stream_leases
 +    install_stream_leases(server, _log_head)
-     port = server.server_address[1]
- 
-     if _KODI:
-@@ -119,6 +121,8 @@ def daemon():
-     install_cached_heads(server, _log_head)
++    from wake_streams import current_account_token, install_wake_streams
++    install_wake_streams(server, current_account_token, _log_head)
      from cancel_reads import install_cancel_reads
      install_cancel_reads(server, _log_head)
+     port = server.server_address[1]
+@@ -107,6 +111,10 @@
+ 
+     server, _ = start_server(port=0)
+     install_cached_heads(server, _log_head)
 +    from session_leases import install_stream_leases
 +    install_stream_leases(server, _log_head)
++    from wake_streams import current_account_token, install_wake_streams
++    install_wake_streams(server, current_account_token, _log_head)
+     from cancel_reads import install_cancel_reads
+     install_cancel_reads(server, _log_head)
      port = server.server_address[1]
-     url = 'http://127.0.0.1:{0}'.format(port)
- 

@@ -1,6 +1,5 @@
 """Keep a proxy session alive while an HTTP stream request still owns it."""
 import threading
-from urllib.parse import urlsplit
 
 
 class _StreamLease:
@@ -36,14 +35,13 @@ def install_stream_leases(server, log=None):
     class LeasedStreamHandler(original):
         _sc_stream_leases = True
 
-        def do_GET(self):
-            parsed = urlsplit(self.path)
+        def _handle_stream(self, parsed):
             if not parsed.path.startswith('/stream/'):
-                return super().do_GET()
+                return super()._handle_stream(parsed)
             session_id = parsed.path[len('/stream/'):]
             session = self.session_manager.get(session_id)
             if session is None:
-                return super().do_GET()
+                return super()._handle_stream(parsed)
             with install_lock:
                 lease = getattr(session, '_sc_stream_lease', None)
                 if lease is None:
@@ -52,7 +50,7 @@ def install_stream_leases(server, log=None):
                     session._sc_stream_lease = lease
                 lease.acquire()
             try:
-                return super().do_GET()
+                return super()._handle_stream(parsed)
             finally:
                 lease.release()
 
