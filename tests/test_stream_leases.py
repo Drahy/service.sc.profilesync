@@ -104,3 +104,32 @@ def test_unknown_sessions_and_other_routes_keep_the_original_response(path):
     original = server.RequestHandlerClass
     install_stream_leases(server)
     assert server.RequestHandlerClass is original
+
+
+def test_windows_core_stream_and_expiry_aliases_retain_active_session():
+    class CompactSession:
+        expired = True
+
+        def _ie(self, age):
+            return self.expired
+
+        def touch(self):
+            self.expired = False
+
+    session = CompactSession()
+
+    class CompactHandler:
+        path = '/stream/example'
+        session_manager = SimpleNamespace(get=lambda _: session)
+
+        def do_GET(self):
+            return self._hs(urlsplit(self.path))
+
+        def _hs(self, parsed):
+            assert not session._ie(1800)
+            return 'streamed'
+
+    server = SimpleNamespace(RequestHandlerClass=CompactHandler)
+    install_stream_leases(server)
+    assert server.RequestHandlerClass().do_GET() == 'streamed'
+    assert session._sc_stream_lease.requests == 0 and not session._ie(1800)

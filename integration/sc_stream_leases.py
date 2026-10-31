@@ -5,7 +5,8 @@ import threading
 class _StreamLease:
     def __init__(self, session):
         self.session = session
-        self.original_expired = session.is_expired
+        self.expiry_method = 'is_expired' if hasattr(session, 'is_expired') else '_ie'
+        self.original_expired = getattr(session, self.expiry_method)
         self.lock = threading.Lock()
         self.requests = 0
 
@@ -30,30 +31,32 @@ def install_stream_leases(server, log=None):
     original = server.RequestHandlerClass
     if getattr(original, '_sc_stream_leases', False):
         return
+    stream_method = '_handle_stream' if hasattr(original, '_handle_stream') else '_hs'
     install_lock = threading.Lock()
 
     class LeasedStreamHandler(original):
         _sc_stream_leases = True
 
-        def _handle_stream(self, parsed):
+        def _leased_stream(self, parsed):
             if not parsed.path.startswith('/stream/'):
-                return super()._handle_stream(parsed)
+                return getattr(super(), stream_method)(parsed)
             session_id = parsed.path[len('/stream/'):]
             session = self.session_manager.get(session_id)
             if session is None:
-                return super()._handle_stream(parsed)
+                return getattr(super(), stream_method)(parsed)
             with install_lock:
                 lease = getattr(session, '_sc_stream_lease', None)
                 if lease is None:
                     lease = _StreamLease(session)
-                    session.is_expired = lease.is_expired
+                    setattr(session, lease.expiry_method, lease.is_expired)
                     session._sc_stream_lease = lease
                 lease.acquire()
             try:
-                return super()._handle_stream(parsed)
+                return getattr(super(), stream_method)(parsed)
             finally:
                 lease.release()
 
+    setattr(LeasedStreamHandler, stream_method, LeasedStreamHandler._leased_stream)
     server.RequestHandlerClass = LeasedStreamHandler
     if log is not None:
         log('Active stream requests retain their proxy session; idle expiry is unchanged')

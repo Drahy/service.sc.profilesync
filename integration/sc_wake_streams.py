@@ -51,7 +51,16 @@ def install_wake_streams(server, get_token, log=None):
     original = server.RequestHandlerClass
     if getattr(original, '_sc_wake_streams', False):
         return
+    play_method = '_handle_play' if hasattr(original, '_handle_play') else '_hp'
+    json_method = '_send_json' if hasattr(original, '_send_json') else '_sj'
+    stream_method = '_handle_stream' if hasattr(original, '_handle_stream') else '_hs'
     registry = _Registry()
+    manager = original.session_manager
+    # The reviewed Windows core uses short names for the same shutdown hooks.
+    # Expose them to the existing service teardown without changing its order.
+    for normal, compact in (('stop_reprobe_thread', '_spr'), ('stop_cleanup_thread', '_stc'), ('close_all', '_ca')):
+        if not hasattr(manager, normal) and hasattr(manager, compact):
+            setattr(manager, normal, getattr(manager, compact))
 
     class WakeStreamHandler(original):
         _sc_wake_streams = True
@@ -64,7 +73,7 @@ def install_wake_streams(server, get_token, log=None):
                 return None
             return super().log_message(message, *args)
 
-        def _handle_play(self, parsed):
+        def _wake_handle_play(self, parsed):
             params = parse_qs(parsed.query)
             ident = params.get('ident', [None])[0]
             preferred = params.get('server', [None])[0]
@@ -73,16 +82,16 @@ def install_wake_streams(server, get_token, log=None):
             self._sc_wake_context = ((ident, preferred)
                                      if ident and len(ident) <= 4096 and 'sc_wake' not in params else None)
             try:
-                return super()._handle_play(parsed)
+                return getattr(super(), play_method)(parsed)
             finally:
                 self._sc_wake_context = None
 
-        def _send_json(self, data, status=200):
+        def _wake_send_json(self, data, status=200):
             if self._sc_wake_context and status == 200 and isinstance(data, dict):
                 parsed = urlsplit(data.get('url', ''))
                 if parsed.hostname == '127.0.0.1' and parsed.path.startswith('/stream/'):
                     registry.remember(parsed.path[len('/stream/'):], *self._sc_wake_context)
-            return super()._send_json(data, status)
+            return getattr(super(), json_method)(data, status)
 
         def _resolve_again(self, entry, token):
             params = {'ident': entry.ident, 'token': token, 'sc_wake': '1'}
@@ -150,11 +159,11 @@ def install_wake_streams(server, get_token, log=None):
                     if log is not None:
                         log('Could not refresh an expired playback session')
 
-        def _handle_stream(self, parsed):
+        def _wake_handle_stream(self, parsed):
             self._recover_stream(parsed)
             if getattr(self, '_sc_cancelled', False):
                 return None
-            return super()._handle_stream(parsed)
+            return getattr(super(), stream_method)(parsed)
 
         def do_HEAD(self):
             self._recover_stream(urlsplit(self.path))
@@ -162,6 +171,9 @@ def install_wake_streams(server, get_token, log=None):
                 return None
             return super().do_HEAD()
 
+    setattr(WakeStreamHandler, play_method, WakeStreamHandler._wake_handle_play)
+    setattr(WakeStreamHandler, json_method, WakeStreamHandler._wake_send_json)
+    setattr(WakeStreamHandler, stream_method, WakeStreamHandler._wake_handle_stream)
     server.RequestHandlerClass = WakeStreamHandler
     if log is not None:
         log('Expired playback sessions can be refreshed using the current account session')

@@ -24,6 +24,8 @@ def install_cancel_reads(server, log=None):
     original = server.RequestHandlerClass
     if getattr(original, '_sc_cancel_reads', False):
         return
+    stream_method = '_handle_stream' if hasattr(original, '_handle_stream') else '_hs'
+    upstream_method = '_open_upstream_with_fallback' if hasattr(original, '_open_upstream_with_fallback') else '_ouf'
     lock = threading.Lock()
     active = set()
 
@@ -32,18 +34,18 @@ def install_cancel_reads(server, log=None):
         _sc_upstream = None
         _sc_cancelled = False
 
-        def _handle_stream(self, parsed):
+        def _cancel_stream(self, parsed):
             self._sc_cancelled = False
             with lock:
                 active.add(self)
             try:
-                return super()._handle_stream(parsed)
+                return getattr(super(), stream_method)(parsed)
             finally:
                 with lock:
                     active.discard(self)
 
-        def _open_upstream_with_fallback(self, session, req_headers):
-            response = super()._open_upstream_with_fallback(session, req_headers)
+        def _cancel_upstream(self, session, req_headers):
+            response = getattr(super(), upstream_method)(session, req_headers)
             self._sc_upstream = response
             if response is not None and self._sc_cancelled:
                 _shutdown_socket(_upstream_socket(response))
@@ -83,4 +85,6 @@ def install_cancel_reads(server, log=None):
             if log is not None:
                 log('Explicit Stop released %d pending stream request(s)' % len(pending))
 
+    setattr(CancelReadHandler, stream_method, CancelReadHandler._cancel_stream)
+    setattr(CancelReadHandler, upstream_method, CancelReadHandler._cancel_upstream)
     server.RequestHandlerClass = CancelReadHandler

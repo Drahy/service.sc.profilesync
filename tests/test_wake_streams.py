@@ -154,3 +154,16 @@ def test_play_query_with_account_token_is_not_written_to_request_log(monkeypatch
     assert handler.log_message('%s', handler.path) is None
     handler.path = '/stream/original'
     assert handler.log_message('%s', handler.path) == ('%s', ('/stream/original',))
+
+
+def test_windows_core_shutdown_hooks_are_exposed():
+    calls = []
+    manager = SimpleNamespace(_spr=lambda: calls.append('reprobe'),
+                              _stc=lambda: calls.append('cleanup'), _ca=lambda: calls.append('sessions'))
+    handler = type('CompactHandler', (), {'session_manager': manager, '_hp': None, '_sj': None, '_hs': None})
+    server = SimpleNamespace(RequestHandlerClass=handler)
+    wake.install_wake_streams(server, lambda: None)
+    manager.stop_reprobe_thread()
+    manager.stop_cleanup_thread()
+    manager.close_all()
+    assert calls == ['reprobe', 'cleanup', 'sessions']
