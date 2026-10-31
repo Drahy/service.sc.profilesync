@@ -13,298 +13,386 @@ index bbd5763..d889839 100644
  - New Skip intro / Skip recap button for add-ons that mark them
  - Faster popups for library episodes, especially long-running shows
 diff --git a/resources/language/resource.language.cs_cz/strings.po b/resources/language/resource.language.cs_cz/strings.po
-index e06abc1..bdab78f 100644
+index e06abc1..ef3dbe9 100644
 --- a/resources/language/resource.language.cs_cz/strings.po
 +++ b/resources/language/resource.language.cs_cz/strings.po
-@@ -251,3 +251,7 @@ msgstr "Zobrazit jednoduchý pop-up ověření pozornosti…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Zobrazit tlačítko \"Zastavení\" místo \"Zavření\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
 +msgstr "Tlačítkem OK otevřít ovládání přehrávání"
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Chování"
 diff --git a/resources/language/resource.language.de_de/strings.po b/resources/language/resource.language.de_de/strings.po
-index 7b47275..92a3294 100644
+index 7b47275..6ec9d77 100644
 --- a/resources/language/resource.language.de_de/strings.po
 +++ b/resources/language/resource.language.de_de/strings.po
-@@ -252,3 +252,7 @@ msgstr "StillWatchingSimple-Popup anzeigen…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -137,6 +137,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "\"Stopp\"-Button statt \"Schließen\"-Button anzeigen"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Verhalten"
 diff --git a/resources/language/resource.language.el_gr/strings.po b/resources/language/resource.language.el_gr/strings.po
-index b51c61a..312bd68 100644
+index b51c61a..6b4da02 100644
 --- a/resources/language/resource.language.el_gr/strings.po
 +++ b/resources/language/resource.language.el_gr/strings.po
-@@ -251,3 +251,7 @@ msgstr "Δείξε ένα αναδυόμενο παράθυρο για την σ
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Δείξε ενα κουμπί \"Σταματήματος\" αντί του κουμπιού \"Κλεισίματος\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Συμπεριφορά"
 diff --git a/resources/language/resource.language.en_gb/strings.po b/resources/language/resource.language.en_gb/strings.po
-index 0e16fd2..53310c8 100644
+index 0e16fd2..cc648f4 100644
 --- a/resources/language/resource.language.en_gb/strings.po
 +++ b/resources/language/resource.language.en_gb/strings.po
-@@ -251,3 +251,7 @@ msgstr ""
- msgctxt "#30813"
- msgid "Test Skip button"
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
  msgstr ""
-+
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr ""
 diff --git a/resources/language/resource.language.es_es/strings.po b/resources/language/resource.language.es_es/strings.po
-index 6200714..1490263 100644
+index 6200714..737b04b 100644
 --- a/resources/language/resource.language.es_es/strings.po
 +++ b/resources/language/resource.language.es_es/strings.po
-@@ -251,3 +251,7 @@ msgstr "Mostrar ventana emergente simple StillWatching …"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Mostrar botón \"Detener\" en lugar de \"Cerrar\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Comportamiento"
 diff --git a/resources/language/resource.language.fi_fi/strings.po b/resources/language/resource.language.fi_fi/strings.po
-index 5b289ee..bfd7a88 100644
+index 5b289ee..9a3431a 100644
 --- a/resources/language/resource.language.fi_fi/strings.po
 +++ b/resources/language/resource.language.fi_fi/strings.po
-@@ -250,3 +250,7 @@ msgstr "Näytä yksinkertaisempi \"Katseletko vielä?\" -ilmoitus…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -135,6 +135,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Korvaa \"Sulje\"-painike \"Pysäytä\"-painikkeella"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Käyttäytyminen"
 diff --git a/resources/language/resource.language.fr_fr/strings.po b/resources/language/resource.language.fr_fr/strings.po
-index f7cdf45..cbee0f2 100644
+index f7cdf45..7c954c2 100644
 --- a/resources/language/resource.language.fr_fr/strings.po
 +++ b/resources/language/resource.language.fr_fr/strings.po
-@@ -253,3 +253,7 @@ msgstr "Afficher une notification StillWatchingSimple…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -138,6 +138,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Afficher un bouton Arrêter au lieu d’un bouton Fermer"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Comportement"
 diff --git a/resources/language/resource.language.hr_hr/strings.po b/resources/language/resource.language.hr_hr/strings.po
-index 89e2093..2a93f71 100644
+index 89e2093..56e7357 100644
 --- a/resources/language/resource.language.hr_hr/strings.po
 +++ b/resources/language/resource.language.hr_hr/strings.po
-@@ -251,3 +251,7 @@ msgstr "Prikaži StillWatchingSimple skočni prozor…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Prikaži \"Zaustavi\" gumb umjesto \"Zatvori\" gumba"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Ponašanje"
 diff --git a/resources/language/resource.language.hu_hu/strings.po b/resources/language/resource.language.hu_hu/strings.po
-index 9bca17f..d0767ad 100644
+index 9bca17f..85f6e80 100644
 --- a/resources/language/resource.language.hu_hu/strings.po
 +++ b/resources/language/resource.language.hu_hu/strings.po
-@@ -250,3 +250,7 @@ msgstr "Még nézed egyszerű pop-up mutatása"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -135,6 +135,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "A \"Stop\" gomb mutatása a \"Bezárás\" gomb helyett"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Viselkedés"
 diff --git a/resources/language/resource.language.in_hi/strings.po b/resources/language/resource.language.in_hi/strings.po
-index ea47b69..d6fa60c 100644
+index ea47b69..fac8fb0 100644
 --- a/resources/language/resource.language.in_hi/strings.po
 +++ b/resources/language/resource.language.in_hi/strings.po
-@@ -251,3 +251,7 @@ msgstr "एक अभी भी देख रहे सरल पॉप-अप 
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "बंद करने के पहले रुकने का बटन दिखाए"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "व्यवहार"
 diff --git a/resources/language/resource.language.it_it/strings.po b/resources/language/resource.language.it_it/strings.po
-index 619e4b6..e945abe 100644
+index 619e4b6..1525710 100644
 --- a/resources/language/resource.language.it_it/strings.po
 +++ b/resources/language/resource.language.it_it/strings.po
-@@ -251,3 +251,7 @@ msgstr "Mostra un StillWatchingSimple pop-up…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Mostra un pulsante \"Stop\" anziché un pulsante \"Chiudi\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Comportamento"
 diff --git a/resources/language/resource.language.ja_jp/strings.po b/resources/language/resource.language.ja_jp/strings.po
-index 3b1262a..157635a 100644
+index 3b1262a..bba9606 100644
 --- a/resources/language/resource.language.ja_jp/strings.po
 +++ b/resources/language/resource.language.ja_jp/strings.po
-@@ -251,3 +251,7 @@ msgstr "StillWatchingSimple通知ウィンドウ"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "\"もう良い\"ボタンの代わりに\"停止\"ボタンを表示する。"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "機能設定"
 diff --git a/resources/language/resource.language.ko_kr/strings.po b/resources/language/resource.language.ko_kr/strings.po
-index a2b6b91..45376a7 100644
+index a2b6b91..6345609 100644
 --- a/resources/language/resource.language.ko_kr/strings.po
 +++ b/resources/language/resource.language.ko_kr/strings.po
-@@ -251,3 +251,7 @@ msgstr "StillWatchingSimple 알림창"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "\"그만\" 버튼 대신 \"중지\" 버튼을 보여줍니다."
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "동작설정"
 diff --git a/resources/language/resource.language.nl_nl/strings.po b/resources/language/resource.language.nl_nl/strings.po
-index 0e07e69..ec09317 100644
+index 0e07e69..4d54a36 100644
 --- a/resources/language/resource.language.nl_nl/strings.po
 +++ b/resources/language/resource.language.nl_nl/strings.po
-@@ -250,3 +250,7 @@ msgstr "Toon een StillWatchingSimple pop-up…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -135,6 +135,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Voorzie een knop \"Stoppen\" in plaats van \"Sluiten\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Gedrag"
 diff --git a/resources/language/resource.language.pl_pl/strings.po b/resources/language/resource.language.pl_pl/strings.po
-index e5e065c..b24c9fb 100644
+index e5e065c..c0dc184 100644
 --- a/resources/language/resource.language.pl_pl/strings.po
 +++ b/resources/language/resource.language.pl_pl/strings.po
-@@ -250,3 +250,7 @@ msgstr "Pokaż okno StillWatchingSimplep…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -135,6 +135,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Pokaż przycisk \"Stop\" zamiast przycisku \"Zamknij\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Zachowanie"
 diff --git a/resources/language/resource.language.pt_br/strings.po b/resources/language/resource.language.pt_br/strings.po
-index 1b63f32..7bb0c8b 100644
+index 1b63f32..7146c44 100644
 --- a/resources/language/resource.language.pt_br/strings.po
 +++ b/resources/language/resource.language.pt_br/strings.po
-@@ -251,3 +251,7 @@ msgstr "Mostrar um pop up Ainda Reproduzindo simples..."
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Mostrar um botão \"Pare\" ao invés de um botão \"Fechar\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Comportamento"
 diff --git a/resources/language/resource.language.ro_ro/strings.po b/resources/language/resource.language.ro_ro/strings.po
-index f7852cd..4ae532f 100644
+index f7852cd..5c4d1c1 100644
 --- a/resources/language/resource.language.ro_ro/strings.po
 +++ b/resources/language/resource.language.ro_ro/strings.po
-@@ -252,3 +252,7 @@ msgstr "Arată o notificare simplă <Mai urmăriți?>"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -137,6 +137,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Arată un buton <Oprește> în locul unuia <Închide>"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Comportament"
 diff --git a/resources/language/resource.language.ru_ru/strings.po b/resources/language/resource.language.ru_ru/strings.po
-index c33a680..9b0908c 100644
+index c33a680..371c808 100644
 --- a/resources/language/resource.language.ru_ru/strings.po
 +++ b/resources/language/resource.language.ru_ru/strings.po
-@@ -251,3 +251,7 @@ msgstr "Показать уведомление StillWatchingSimple…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Показывать кнопку \"Остановить\" вместо кнопки \"Закрыть\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Поведение"
 diff --git a/resources/language/resource.language.sk_sk/strings.po b/resources/language/resource.language.sk_sk/strings.po
-index 4487b5f..6174c78 100644
+index 4487b5f..55636fb 100644
 --- a/resources/language/resource.language.sk_sk/strings.po
 +++ b/resources/language/resource.language.sk_sk/strings.po
-@@ -251,3 +251,7 @@ msgstr "Zobraziť vyskakovacie okno Stále sledujete (jednoduché)"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Zobraziť tlačidlo \"Zastaviť\" namiesto tlačidla \"Zavrieť\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
 +msgstr "Tlačidlom OK otvoriť ovládanie prehrávania"
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Správanie"
 diff --git a/resources/language/resource.language.sv_se/strings.po b/resources/language/resource.language.sv_se/strings.po
-index 8f66fdf..60db106 100644
+index 8f66fdf..b418787 100644
 --- a/resources/language/resource.language.sv_se/strings.po
 +++ b/resources/language/resource.language.sv_se/strings.po
-@@ -251,3 +251,7 @@ msgstr "Visa en enkel popup för \"Tittar du fortfarande\"…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "Visa en \"Stoppknapp\" i stället för en \"Stängknapp\""
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "Beteende"
 diff --git a/resources/language/resource.language.zh_cn/strings.po b/resources/language/resource.language.zh_cn/strings.po
-index 11ad7cb..46d414b 100644
+index 11ad7cb..2b0c6fd 100644
 --- a/resources/language/resource.language.zh_cn/strings.po
 +++ b/resources/language/resource.language.zh_cn/strings.po
-@@ -251,3 +251,7 @@ msgstr "显示“还在看吗？（简约）”弹窗…"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "显示“停止”按钮而不是“关闭”按钮"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "播放行为"
 diff --git a/resources/language/resource.language.zh_tw/strings.po b/resources/language/resource.language.zh_tw/strings.po
-index cec6b26..d43f14f 100644
+index cec6b26..f54f4de 100644
 --- a/resources/language/resource.language.zh_tw/strings.po
 +++ b/resources/language/resource.language.zh_tw/strings.po
-@@ -251,3 +251,7 @@ msgstr "顯示 簡易還在觀看 跳出"
- msgctxt "#30813"
- msgid "Test Skip button"
- msgstr ""
-+
+@@ -136,6 +136,10 @@ msgctxt "#30505"
+ msgid "Show a \"Stop\" button instead of a \"Close\" button"
+ msgstr "顯示 \"停止播放\" 按鈕而非 \"關閉\" 按鈕"
+ 
 +msgctxt "#30507"
 +msgid "Use OK/Select for playback controls"
-+msgstr "Use OK/Select for playback controls"
++msgstr ""
++
+ msgctxt "#30600"
+ msgid "Behaviour"
+ msgstr "風格"
+diff --git a/resources/lib/playbackmanager.py b/resources/lib/playbackmanager.py
+index 650d8d6..54a8af9 100644
+--- a/resources/lib/playbackmanager.py
++++ b/resources/lib/playbackmanager.py
+@@ -214,6 +214,7 @@ class PlaybackManager:
+             play_time, total_time = position
+ 
+             remaining = total_time - play_time
++            next_up_page.restore_after_playback_controls()
+             if not self.state.pause:
+                 if showing_next_up_page:
+                     if credits_deadline is not None:
 diff --git a/resources/lib/upnext.py b/resources/lib/upnext.py
-index b8a7136..432d447 100644
+index b8a7136..9f3e6d8 100644
 --- a/resources/lib/upnext.py
 +++ b/resources/lib/upnext.py
-@@ -1,13 +1,18 @@
+@@ -1,13 +1,24 @@
  # -*- coding: utf-8 -*-
  # GNU General Public License v2.0 (see COPYING or https://www.gnu.org/licenses/gpl-2.0.txt)
  
-+from xbmc import executebuiltin
-+from xbmcgui import ControlButton
++from time import monotonic
++from xbmc import executebuiltin, getCondVisibility
++from xbmcgui import ControlButton, getCurrentWindowDialogId
  from popup import Popup
  from utils import get_setting_bool, localize
  
 +ACTION_SHOW_OSD = 24
++ACTION_MOVE_UP = 3
 +
  
  class UpNext(Popup):
      watchnow = False
      auto_advance = False
 +    playback_control = None
++    playback_dialog_id = None
++    controls_pending = False
++    controls_seen = False
++    controls_check_at = 0
  
      def onInit(self):  # pylint: disable=invalid-name
          super().onInit()
-@@ -15,6 +20,39 @@ class UpNext(Popup):
+@@ -15,6 +26,68 @@ class UpNext(Popup):
              self.getControl(3013).setLabel(localize(30033))  # Stop
          else:
              self.getControl(3013).setLabel(localize(30034))  # Close
 +        if get_setting_bool('selectOpensPlaybackControls'):
-+            self.prepare_playback_controls()
++            self.playback_dialog_id = getCurrentWindowDialogId()
++            if self.playback_control is None:
++                self.prepare_playback_controls()
++            else:
++                self.setFocus(self.playback_control)
 +
 +    def prepare_playback_controls(self):
 +        """Let Select open the player until navigation enters the popup buttons."""
@@ -323,7 +411,27 @@ index b8a7136..432d447 100644
 +    def open_playback_controls(self):
 +        # The native OSD takes input while the next-episode popup stays visible.
 +        # Returning from the OSD restores the popup without cancelling playback.
++        if self.playback_control is not None:
++            self.controls_pending = True
++            self.controls_seen = False
++            self.controls_check_at = 0
 +        executebuiltin('ActivateWindow(videoosd)')
++
++    def restore_after_playback_controls(self):
++        """Restore a hidden popup after Kodi closes the playback controls."""
++        if (not self.controls_pending or not self.playback_dialog_id or self.is_cancel()
++                or self.is_watch_now() or self.is_auto_advance()):
++            return
++        now = monotonic()
++        if now < self.controls_check_at:
++            return
++        if getCondVisibility('Window.IsVisible(videoosd)'):
++            self.controls_seen = True
++            self.controls_check_at = now + .5
++        elif self.controls_seen:
++            self.controls_pending = False
++            if not getCondVisibility('Window.IsVisible(%d)' % self.playback_dialog_id):
++                self.show()
 +
 +    def onClick(self, controlId):  # pylint: disable=invalid-name
 +        if self.playback_control is not None and controlId == self.playback_control.getId():
@@ -334,6 +442,11 @@ index b8a7136..432d447 100644
 +    def onAction(self, action):  # pylint: disable=invalid-name
 +        if action == ACTION_SHOW_OSD:
 +            self.open_playback_controls()
++        elif (action == ACTION_MOVE_UP and self.playback_control is not None
++              and self.getFocusId() != self.playback_control.getId()):
++            # Return from the horizontal Next/Close buttons to the neutral
++            # target so Select can open playback controls again.
++            self.setFocus(self.playback_control)
 +        else:
 +            super().onAction(action)
  
