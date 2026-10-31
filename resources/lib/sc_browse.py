@@ -4,12 +4,34 @@ import json
 import copy
 import re
 import time
+from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
 FOCUS_PROPERTY = "sc.profile.browse.focus"
 SERIES = re.compile(r"^/FGet/(\d+)$")
 SEASON = re.compile(r"^/FGet/(\d+)/(\d+)$")
 LAST = re.compile(r"^(\d+)x([1-9]\d*)$")
+PLAYED_EPISODE = re.compile(r"^last_played:(\d+):([1-9]\d*)$")
+
+
+def most_recent_episode(data):
+    """Use a real playback timestamp; keep SC's completed-episode pointer intact."""
+    if not isinstance(data, dict):
+        return None
+    fallback = data.get('last_ep')
+    fallback = fallback if isinstance(fallback, str) and LAST.fullmatch(fallback) else None
+    candidates = []
+    for key, value in data.items():
+        match = PLAYED_EPISODE.fullmatch(key) if isinstance(key, str) else None
+        if not match or not isinstance(value, str):
+            continue
+        try:
+            when = datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+        except (ValueError, TypeError, OverflowError, OSError):
+            continue
+        episode = '%sx%s' % (int(match.group(1)), int(match.group(2)))
+        candidates.append((when, episode == fallback, episode))
+    return max(candidates)[2] if candidates else fallback
 
 
 def history_response(ids, load, list_id, title, next_title, page=0, size=20):
@@ -19,7 +41,15 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20):
     selected = ids[page * size : (page + 1) * size]
     menu = []
     for show in selected:
-        response = load("/FGet/" + show)
+        try:
+            response = load("/FGet/" + show)
+        except Exception:
+            if list_id.endswith("lasts"):
+                continue
+            try:
+                response = load("/Play/" + show)
+            except Exception:
+                continue
         if not isinstance(response, dict):
             continue
         system = response.get("system", {})
@@ -28,7 +58,10 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20):
             if not seasons:
                 if list_id.endswith("lasts"):
                     continue
-                response = load("/Play/" + show)
+                try:
+                    response = load("/Play/" + show)
+                except Exception:
+                    continue
                 if not isinstance(response, dict):
                     continue
                 seasons = []
@@ -63,7 +96,7 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20):
         else:
             continue
         menu.append(item)
-    if selected and not menu:
+    if selected and not menu and (page + 1) * size >= len(ids):
         raise ValueError("No history metadata is currently available")
     if (page + 1) * size < len(ids):
         menu.append(

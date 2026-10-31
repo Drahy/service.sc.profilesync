@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from resources.lib.sc_browse import all_seasons, focus_request, history_response, last_seen_item
+from resources.lib.sc_browse import all_seasons, focus_request, history_response, last_seen_item, most_recent_episode
 
 
 def test_last_seen_opens_the_exact_shared_season_without_starting_video():
@@ -13,6 +13,22 @@ def test_last_seen_opens_the_exact_shared_season_without_starting_video():
     assert item["resume_seasons"] == original["url"]
     assert "resume_episode" not in original
     assert focus_request(item["url"], item["resume_episode"]) == {"route": "/FGet/42/9", "item": "/Play/42/9/3"}
+
+
+def test_latest_started_episode_wins_without_changing_completed_pointer():
+    history = {'last_ep':'4x8', 'last_played:4:8':'2026-10-31 20:00:00',
+               'last_played:5:2':'2026-10-31 21:00:00', 'watched:5:2':45}
+    original = copy.deepcopy(history)
+    assert most_recent_episode(history) == '5x2'
+    assert history == original
+    item = last_seen_item({'type':'dir','url':'/FGet/42'}, lambda _:most_recent_episode(history))
+    assert item['url'] == '/FGet/42/5'
+    assert item['resume_episode'] == '2'
+
+
+def test_latest_episode_falls_back_to_existing_completed_pointer():
+    assert most_recent_episode({'last_ep':'3x4', 'last_played:5:2':'bad'}) == '3x4'
+    assert most_recent_episode({'last_ep':'bad'}) is None
 
 
 def test_movies_unknown_history_and_season_entries_stay_unchanged():
@@ -101,6 +117,34 @@ def test_unavailable_titles_are_not_deleted_from_saved_history():
     assert [item["id"] for item in response["menu"]] == ["43"]
     with pytest.raises(ValueError):
         history_response(ids, lambda route: {}, "lasts", "Last seen", "Next Page")
+
+
+def test_one_failed_metadata_request_does_not_hide_other_history():
+    ids = ['42', '43']
+    def load(route):
+        if route.endswith('42'):
+            raise TimeoutError('temporary')
+        return show_metadata()
+    result = history_response(ids, load, 'lasts', 'Last seen', 'Next Page')
+    assert [item['id'] for item in result['menu']] == ['43']
+    assert ids == ['42', '43']
+
+
+def test_next_page_remains_accessible_when_current_page_temporarily_fails():
+    def load(_): raise TimeoutError('temporary')
+    result = history_response(['42', '43'], load, 'lasts', 'Last seen', 'Next Page', size=1)
+    assert result['menu'][0]['type'] == 'next'
+    assert result['menu'][0]['page'] == '1'
+
+
+def test_film_history_can_use_play_metadata_if_folder_lookup_fails():
+    def load(route):
+        if route.startswith('/FGet/'):
+            raise TimeoutError('temporary')
+        return {'info':{'info':{'title':'Film','mediatype':'movie'}}}
+    result = history_response(['42'], load, 'lastf', 'Last seen', 'Next Page')
+    assert result['menu'][0]['type'] == 'video'
+    assert result['menu'][0]['url'] == '/Play/42'
 
 
 def test_movie_history_never_exposes_or_plays_resolved_stream_urls():

@@ -238,7 +238,7 @@
  
          for i in self.response.get(SC.ITEM_MENU):
 +            if self.url == '/Last':
-+                i = resume_browse.last_seen_item(i, lambda show: SCKODIItem(int(show)).get('last_ep'))
++                i = resume_browse.last_seen_item(i, lambda show: resume_browse.most_recent_episode(SCKODIItem(int(show)).data))
              item = SCItem(i)
  
              if item.visible:

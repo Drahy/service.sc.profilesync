@@ -6,17 +6,31 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
 - Copy `resources/lib/sc_bridge.py` from this repository to SC's `resources/lib/common/profile_sync.py`.
 - Apply `last-seen-browse.patch` from the SC addon root with `git apply`.
 - Copy `resources/lib/sc_browse.py` to SC's `resources/lib/common/resume_browse.py`.
+- Apply `last-viewed-playback.patch` and copy `sc_last_viewed.py` to SC's
+  `resources/lib/common/last_viewed.py`. Copy `sc_last_seen.py` to
+  `resources/lib/common/last_seen.py` and apply `last_seen_timing_patch.py`
+  against the addon root with a backup directory. This moves Last Seen and the
+  episode last-played timestamp to ten seconds of actual playback; pauses,
+  buffering, failed starts and seek jumps do not count. Completed-episode
+  pointers, bookmarks and play counts remain independent.
 - Apply `menu-performance.patch` from the SC addon root to prepare plugin items without GUI locks.
 
 The bridges perform local cache invalidation, safe SQLite merging and exact episode selection. They contain no cloud requests or playback commands. The profile service performs cloud operations independently and defers imports during playback.
 
 For the latest episode-return behavior, apply `episode-return.patch` after the base patches, copy `sc_navigation.py` to SC's `resources/lib/services/navigation.py`, and copy `sc_episode_return.py` to `resources/lib/common/episode_return.py`. Check and apply the patch with `git apply --check --ignore-space-change` followed by `git apply --ignore-space-change` so compatible copies with CRLF line endings are supported. These integration files are maintained separately from the service package; restart Kodi after installing them.
 
-This integration opens the last available shared Last seen season and selects its exact watched episode after startup, a fresh entry into Stream Cinema, or wake from sleep. It never starts playback. A separate durable episode checkpoint survives browsing the main menu and provides an offline fallback. Native wake callbacks queue local navigation; an interpreter suspension also rearms recovery. Normal Back navigation within Stream Cinema still reaches its menus, actions/widgets retain their original routes, and an existing player or a different addon's screen is not interrupted. A service restart within the same Kodi process does not by itself change the screen. Updating SC Profile Sync alone does not replace these Stream Cinema files.
+This integration opens the last available shared Last seen season and selects its most recently played episode after at least ten seconds of actual playback, including an unfinished episode, after startup, a fresh entry into Stream Cinema, wake from sleep or selecting the show in Last Seen. It falls back to SC's completed-episode pointer when no playback timestamp exists and never starts playback. A separate durable episode checkpoint survives browsing the main menu and provides an offline fallback. Native wake callbacks queue local navigation; an interpreter suspension also rearms recovery. Normal Back navigation within Stream Cinema still reaches its menus, actions/widgets retain their original routes, and an existing player or a different addon's screen is not interrupted. A service restart within the same Kodi process does not by itself change the screen. Updating SC Profile Sync alone does not replace these Stream Cinema files.
 
 For 0.1.5, recopy the updated `sc_bridge.py` as `profile_sync.py`: repeated readers now share one independent merge snapshot for the same cached data object and reuse a Home-window handle. Revision checks still run on every read, so remote updates remain immediately visible. Loads and committed saves replace the snapshot; nested unsaved edits still merge with current remote data.
 
 Keep the locally patched Stream Cinema and helper on manual updates. Reapply these patches to a reviewed future build before enabling it. The current Up Next base is the official [v1.3.0 tag](https://github.com/im85288/service.upnext/tree/v1.3.0), commit `a7cadd1b0f706c41335323da30f2079e09d4f3a9`. Earlier Stop, Back, wake and credits fixes are already in that release and need no separate local copies. The companion patch also includes the maintainer's merged [file-handoff timing fix](https://github.com/im85288/service.upnext/pull/353) from upstream `2a5403c`, alongside the playback-controls contribution in PR #350. SC Profile Sync does not install or update Up Next.
+
+Manual update protection prevents unattended replacement, not a manual reinstall.
+Before updating either addon, back up its installed code and review the new
+version against every applicable integration; preflight the patches and keep a
+rollback copy. Do not copy old addon files over a different version or assume
+that a profile-sync update automatically reinstalls these integrations. Addon
+settings, account credentials and viewing databases are not part of code backups.
 
 The shared Up Next preferences retain compact mode (`simpleMode=0`), allow Back to hide the popup while playback continues (`stopAfterClose=false`), and disable early credits autoplay (`autoPlayCreditsTime=0`). Manual selection of the next episode remains available. Per-addon update policies stay local to each device.
 
@@ -59,3 +73,38 @@ Apply it to a backed-up compatible Amber checkout with `git apply --check` follo
 ## Optional disabled-view optimization
 
 `amber-disabled-views.patch` skips construction of alternate video layouts that Amber's existing `Hide.*View` preferences disable. List remains loaded as the default/fallback. Default preferences still load every layout; the patch does not silently select a restricted set. Reenter the media window or restart Kodi after changing enabled views. These appearance preferences are shared by profile synchronization, so selecting only List also changes the enabled-view choice on the other devices.
+
+For transient connectivity errors during automatic episode return, install
+`sc_navigation.py` and apply `sc_navigation_retry_patch.transform` to
+`resources/lib/streamcinema.py`. The retry is limited to the saved folder and
+stops on playback or navigation; ordinary browsing errors remain visible.
+
+## Webshare Stop and matched-episode return
+
+The optional companion uses `localproxy.py` to register HTTPS Webshare links
+with SC Helper. Apply `patch_webshare_helper.transform` to Helper's `service.py`
+and copy `sc_webshare_proxy.py` there as `webshare_proxy.py`; restart the helper
+when playback is idle. Its opaque sessions and upstream links live in memory,
+only accept loopback registrations to the approved Webshare CDN, answer HEAD
+from verified file metadata, forward ranges and cancel live reads on Stop.
+Active streams retain their session; no link or credential enters profile sync.
+
+Copy `sc_episode_return.py` to SC `resources/lib/common/episode_return.py` and
+`sc_navigation.py` to SC `resources/lib/services/navigation.py`. Apply the
+companion `patch_webshare_stop.transform` to SC `services/player.py` and
+`patch_safe_stop.transform` to the existing per-device `userdata/sc-safe-stop.py`.
+A matched companion episode requests a return before Stop cancels playback;
+the navigation service waits for playback and the window transition, verifies
+the user stayed in that results folder and selects the exact episode. Generic
+Webshare files without an SC identity do not invent a catalog or history entry.
+Back up and hash-check device preimages and reload only when playback is idle.
+Kodi/addon updates can replace these local hooks, which must be reapplied only
+against compatible sources. Account settings remain device-local.
+
+When a season search carries an SC show ID, the companion associates the
+entered season and episode numbers with that show even if the catalog has no
+row for the episode. This does not create a Stream Cinema catalog entry: the
+return can open the season, but cannot select a row that does not exist. A
+generic filename search without that identity has no SC history or matched
+episode return. Playback of an absent catalog episode remains subject to
+provider availability and has not been established by the existing live tests.

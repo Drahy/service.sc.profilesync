@@ -1,0 +1,15 @@
+--- a/resources/lib/services/player.py
++++ b/resources/lib/services/player.py
+@@ -102,6 +102,12 @@
+             series = self.item['info'].get('season')
+             episode = self.item['info'].get('episode')
+             self.movie = SCKODIItem(self.my_id, series=series, episode=episode, trakt=self.ids.get('trakt'))
++            # Record the most recently played episode independently of completion.
++            try:
++                from resources.lib.common.last_viewed import remember
++                remember(self.movie, series, episode)
++            except Exception:
++                debug('Could not save latest episode playback time')
+             self.movie.scrobble(self.percent_played(), SCKODIItem.SCROBBLE_START)
+             # Register the next episode before audio-only early returns.
+             if self.item and self.item['info'].get('episode') is not None:

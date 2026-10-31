@@ -38,10 +38,11 @@ def load_target(state):
     try:
         from resources.lib.common.lists import List
         from resources.lib.common.storage import Storage
+        from resources.lib.common.resume_browse import most_recent_episode
         from resources.lib.gui.item import get_history_item_name
 
         history = List(get_history_item_name('lasts')).get()
-        return target(history, lambda show: Storage('SCKODIItem-' + show).get('last_ep'), state)
+        return target(history, lambda show: most_recent_episode(Storage('SCKODIItem-' + show).data), state)
     except Exception:
         return target([], lambda show: None, state)
 
@@ -76,3 +77,25 @@ def prepare_entry(args):
         home.setProperty(INSIDE_PROPERTY, '1')
         home.setProperty(REQUEST_PROPERTY, json.dumps({'target': result, 'expires': time.time() + 90}))
     return result
+
+
+def request_webshare_stop(window, item, show_id, now=None):
+    """Return to a matched episode only when stopping a companion-owned stream."""
+    try:
+        origin = window.getProperty('sc.webshare.origin')
+        selected = json.loads(window.getProperty('SC:selected'))
+        if not origin.startswith('plugin://plugin.video.sc.websharebridge/') or selected.get('provider') != 'webshare':
+            return False
+        info = item.get('info', {})
+        show, season, episode = str(show_id), int(info['season']), int(info['episode'])
+        if not re.fullmatch(r'[1-9][0-9]{0,11}', show) or not 0 <= season <= 999 or not 1 <= episode <= 9999:
+            return False
+        target = {'id':show, 'url':'/FGet/%s/%s' % (show, season), 'resume_episode':str(episode)}
+        window.setProperty(REQUEST_PROPERTY, json.dumps({'target':target, 'source':'webshare-stop',
+                           'origin':origin, 'not_before':(now if now is not None else time.time()) + 2,
+                           'expires':(now if now is not None else time.time()) + 90}))
+        return True
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return False
+    finally:
+        window.clearProperty('sc.webshare.origin')

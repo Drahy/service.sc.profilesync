@@ -19,6 +19,7 @@ from resources.lib.common import episode_return
 
 RESTORE_PARAMETER = 'navigation_restore'
 VIDEO_WINDOW = 10025
+RETRY_PROPERTY = 'SC.navigation.restore.transient'
 
 
 def route_args(uri):
@@ -83,6 +84,7 @@ def item_key(uri):
 class NavigationRecovery:
     START_DELAY = 3
     RESTORE_TIMEOUT = 90
+    RETRY_DELAYS = (15, 30, 60, 120, 120)
 
     def __init__(self, monitor, player):
         self.monitor = monitor
@@ -103,6 +105,10 @@ class NavigationRecovery:
         self.started = time.monotonic()
         self.issued = False
         self.deadline = None
+        self.retry_count = 0
+        self.retry_at = None
+        self.retry_in_flight = False
+        self.webshare_origin = None
         self.force_entry = False
         self.wake_serial = getattr(monitor, 'navigation_wake', 0)
         self.sleeping = monitor.is_DPMS or monitor.is_screensaver
@@ -164,6 +170,8 @@ class NavigationRecovery:
         if target:
             self.state['checkpoint'] = self._target_checkpoint(target)
             self.pending, self.issued, self.force_entry = True, False, True
+            self.retry_at, self.retry_count = None, 0
+            xbmcgui.Window(10000).clearProperty(RETRY_PROPERTY)
             self.started = time.monotonic() - self.START_DELAY
 
     @staticmethod
@@ -235,6 +243,11 @@ class NavigationRecovery:
                 self._update(checkpoint)
 
     def _finish_restore(self):
+        xbmcgui.Window(10000).clearProperty(RETRY_PROPERTY)
+        self.retry_at = None
+        self.retry_count = 0
+        self.retry_in_flight = False
+        self.webshare_origin = None
         self.pending = False
         self.state['session']['restoring'] = False
         self._save()
@@ -249,23 +262,45 @@ class NavigationRecovery:
             target = data['target']
             focus = resume_browse.focus_request(target['url'], target['resume_episode'])
             if (not focus or str(target['id']) != focus['item'].split('/')[2]
-                    or float(data['expires']) < time.time() or self.player.isPlayback()):
+                    or float(data['expires']) < time.time()):
                 raise ValueError('Expired or invalid episode entry')
+            if data.get('source') == 'webshare-stop' and time.time() < float(data.get('not_before', 0)):
+                return True
+            if self.player.isPlayback():
+                if data.get('source') == 'webshare-stop':
+                    return True
+                raise ValueError('Playback is active')
             target = {'id': str(target['id']), 'url': focus['route'],
                       'resume_episode': target['resume_episode'], 'navigation_restore': '1'}
-        except (ValueError, TypeError, KeyError, AttributeError):
+        except (ValueError, TypeError, KeyError, AttributeError) as error:
+            if isinstance(locals().get('data'), dict) and data.get('source') == 'webshare-stop':
+                xbmc.log('[SC navigation] Webshare return invalid: ' + type(error).__name__ + ' ' + str(error), xbmc.LOGINFO)
             home.clearProperty(episode_return.REQUEST_PROPERTY)
             return False
         if self.monitor.is_DPMS or self.monitor.is_screensaver or xbmc.getCondVisibility('Container.IsUpdating'):
             return True
         window = xbmcgui.getCurrentWindowId()
         folder = xbmc.getInfoLabel('Container.FolderPath')
-        if window not in (10000, VIDEO_WINDOW) or (window == VIDEO_WINDOW and folder.startswith('plugin://') and not safe_folder(folder)):
+        webshare_return = (data.get('source') == 'webshare-stop'
+                           and folder == data.get('origin')
+                           and folder.startswith('plugin://plugin.video.sc.websharebridge/'))
+        if data.get('source') == 'webshare-stop' and window == 12005:
+            return True
+        if data.get('source') == 'webshare-stop' and (window != VIDEO_WINDOW or not webshare_return):
+            xbmc.log('[SC navigation] Webshare return cancelled: window=%s origin_matches=%s' % (window, webshare_return), xbmc.LOGINFO)
+            home.clearProperty(episode_return.REQUEST_PROPERTY)
+            return False
+        if window not in (10000, VIDEO_WINDOW) or (window == VIDEO_WINDOW and folder.startswith('plugin://') and not safe_folder(folder) and not webshare_return):
             home.clearProperty(episode_return.REQUEST_PROPERTY)
             return False
         home.clearProperty(episode_return.REQUEST_PROPERTY)
         self.state['checkpoint'] = self._target_checkpoint(target)
+        self.webshare_origin = folder if webshare_return else None
+        if webshare_return:
+            xbmc.log('[SC navigation] Webshare return accepted', xbmc.LOGINFO)
         self.pending, self.issued, self.force_entry = True, False, True
+        self.retry_at, self.retry_count = None, 0
+        home.clearProperty(RETRY_PROPERTY)
         self.started = time.monotonic() - self.START_DELAY
         # Let the root directory finish before posting the new window request.
         return True
@@ -325,7 +360,11 @@ class NavigationRecovery:
         window_id = xbmcgui.getCurrentWindowId()
         current = safe_folder(xbmc.getInfoLabel('Container.FolderPath'))
         if not self.issued:
-            foreign = xbmc.getInfoLabel('Container.FolderPath').startswith('plugin://') and not current
+            raw_folder = xbmc.getInfoLabel('Container.FolderPath')
+            if self.webshare_origin and raw_folder != self.webshare_origin:
+                self._finish_restore()
+                return
+            foreign = raw_folder.startswith('plugin://') and not current and raw_folder != self.webshare_origin
             if (window_id not in (10000, VIDEO_WINDOW) or foreign
                     or (not self.force_entry and current and route_args(current).get('url', '/') != '/')):
                 self._finish_restore()
@@ -334,7 +373,37 @@ class NavigationRecovery:
             self._save()
             self.issued = True
             self.deadline = now + self.RESTORE_TIMEOUT
-            xbmc.executebuiltin('ActivateWindow(videos,"%s",return)' % restoring_uri(checkpoint['folder']))
+            if self.webshare_origin and window_id == VIDEO_WINDOW:
+                xbmc.executebuiltin('Container.Update("%s",replace)' % restoring_uri(checkpoint['folder']))
+            else:
+                xbmc.executebuiltin('ActivateWindow(videos,"%s",return)' % restoring_uri(checkpoint['folder']))
+            return
+        if self.retry_at is not None or xbmcgui.Window(10000).getProperty(RETRY_PROPERTY):
+            home = xbmcgui.Window(10000)
+            failed_route = home.getProperty(RETRY_PROPERTY)
+            expected_route = route_args(checkpoint['folder']).get('url', '/')
+            if window_id != VIDEO_WINDOW or current != checkpoint['folder']:
+                self._finish_restore()
+                return
+            if failed_route:
+                self.retry_in_flight = False
+                home.clearProperty(RETRY_PROPERTY)
+                if failed_route != expected_route:
+                    self._finish_restore()
+                    return
+                if self.retry_count >= len(self.RETRY_DELAYS):
+                    xbmcgui.Dialog().notification('Stream Cinema', 'Connection is still unavailable. Please try again later.')
+                    self._finish_restore()
+                    return
+                if self.retry_count == 0:
+                    xbmcgui.Dialog().notification('Stream Cinema', 'Connection unavailable. Retrying the last episode list.')
+                self.retry_at = now + self.RETRY_DELAYS[self.retry_count]
+                self.retry_count += 1
+            if self.retry_at is not None and now >= self.retry_at:
+                self.retry_at = None
+                self.deadline = now + self.RESTORE_TIMEOUT
+                self.retry_in_flight = True
+                xbmc.executebuiltin('Container.Refresh')
             return
         if now > self.deadline or window_id not in (10000, VIDEO_WINDOW):
             self._finish_restore()
@@ -363,6 +432,8 @@ class NavigationRecovery:
         if position is not None:
             window.setFocusId(identifier)
             control.selectItem(position)
+        elif self.retry_in_flight:
+            return
         self._finish_restore()
         debug('Navigation recovery finished' if position is not None else 'Navigation recovery: saved item unavailable')
 

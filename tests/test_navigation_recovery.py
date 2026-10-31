@@ -54,6 +54,7 @@ def environment(tmp_path, monkeypatch):
         now=0,
         pid=10,
         focused=55,
+        notifications=[],
     )
     context.properties = {}
     control = NativeList()
@@ -88,9 +89,12 @@ def environment(tmp_path, monkeypatch):
         "Container.IsUpdating": context.updating,
     }.get(name, False)
     xbmc.executebuiltin = context.commands.append
+    xbmc.log = lambda *args: None
+    xbmc.LOGINFO = 1
     gui = ModuleType("xbmcgui")
     gui.getCurrentWindowId = lambda: context.window
     gui.Window = lambda identifier: window
+    gui.Dialog = lambda: SimpleNamespace(notification=lambda *args: context.notifications.append(args))
     vfs = ModuleType("xbmcvfs")
     vfs.translatePath = lambda path: path
     constants = ModuleType("resources.lib.constants")
@@ -555,3 +559,97 @@ def test_entry_request_cannot_interrupt_video_or_run_after_expiry(environment, p
     env.context.properties[sc_episode_return.REQUEST_PROPERTY] = json.dumps({'target': {'id': '123', 'url': '/FGet/123/36', 'resume_episode': '8'}, 'expires': expires})
     assert not worker.entry_requested() and not worker.pending
     assert not env.context.commands
+
+
+def test_transient_failure_retries_same_folder_then_selects_episode(environment):
+    env = environment
+    worker = interrupted_session(env)
+    worker.restore()
+    env.context.window = 10025
+    env.context.folder = worker.state["checkpoint"]["folder"]
+    env.context.items = []
+    env.context.properties[env.module.RETRY_PROPERTY] = env.module.route_args(worker.state["checkpoint"]["folder"])["url"]
+    worker.restore()
+    assert worker.pending and len(env.context.commands) == 1
+    assert len(env.context.notifications) == 1
+    env.context.now += 14
+    worker.restore()
+    assert len(env.context.commands) == 1
+    env.context.now += 1
+    worker.restore()
+    assert env.context.commands[-1] == "Container.Refresh"
+    env.context.items = [uri("/Play/123/36/8")]
+    worker.restore()
+    assert env.control.selected == 0 and not worker.pending
+
+
+@pytest.mark.parametrize("playing,folder", [(True, None), (False, uri("/Other/456"))])
+def test_transient_retry_stops_for_playback_or_navigation(environment, playing, folder):
+    env = environment
+    worker = interrupted_session(env)
+    worker.restore()
+    env.context.window = 10025
+    env.context.folder = worker.state["checkpoint"]["folder"]
+    env.context.properties[env.module.RETRY_PROPERTY] = env.module.route_args(worker.state["checkpoint"]["folder"])["url"]
+    worker.restore()
+    env.player.isPlayback = lambda: playing
+    if folder is not None:
+        env.context.folder = folder
+    env.context.now += 60
+    worker.restore()
+    assert not worker.pending
+    assert len(env.context.commands) == 1
+    assert env.module.RETRY_PROPERTY not in env.context.properties
+
+
+def test_transient_retries_are_bounded_and_notify_once(environment):
+    env = environment
+    worker = interrupted_session(env)
+    worker.restore()
+    env.context.window = 10025
+    env.context.folder = worker.state["checkpoint"]["folder"]
+    env.context.items = []
+    for delay in worker.RETRY_DELAYS:
+        env.context.properties[env.module.RETRY_PROPERTY] = env.module.route_args(worker.state["checkpoint"]["folder"])["url"]
+        worker.restore()
+        env.context.now += delay
+        worker.restore()
+    env.context.properties[env.module.RETRY_PROPERTY] = env.module.route_args(worker.state["checkpoint"]["folder"])["url"]
+    worker.restore()
+    assert not worker.pending
+    assert len(env.context.commands) == 1 + len(worker.RETRY_DELAYS)
+    assert len(env.context.notifications) == 2
+
+
+def test_webshare_stop_returns_only_from_its_own_result_folder(environment):
+    env = environment
+    worker = env.make()
+    origin = 'plugin://plugin.video.sc.websharebridge/?action=episode&show=Example'
+    env.context.folder = origin
+    env.context.properties['sc.webshare.origin'] = origin
+    env.context.properties['SC:selected'] = json.dumps({'provider':'webshare'})
+    assert sc_episode_return.request_webshare_stop(env.module.xbmcgui.Window(10000),
+        {'info':{'season':36,'episode':8}}, '123', now=env.context.now)
+    assert worker.entry_requested() and not worker.pending
+    env.context.now += 2
+    assert worker.entry_requested() and worker.pending
+    worker.restore()
+    assert len(env.context.commands)==1 and 'Container.Update(' in env.context.commands[0]
+    env.context.folder = env.module.restoring_uri(worker.state['checkpoint']['folder'])
+    env.context.items = [uri('/Play/123/36/8')]
+    worker.restore()
+    assert env.control.selected == 0 and not worker.pending
+
+
+def test_webshare_stop_does_not_steal_user_navigation(environment):
+    env = environment
+    worker = env.make()
+    origin = 'plugin://plugin.video.sc.websharebridge/?action=episode&show=Example'
+    env.context.properties['sc.webshare.origin'] = origin
+    env.context.properties['SC:selected'] = json.dumps({'provider':'webshare'})
+    sc_episode_return.request_webshare_stop(env.module.xbmcgui.Window(10000),
+        {'info':{'season':36,'episode':8}}, '123', now=env.context.now)
+    env.context.folder = uri('/Other/456')
+    env.context.now += 2
+    assert not worker.entry_requested()
+    assert not worker.pending and not env.context.commands
