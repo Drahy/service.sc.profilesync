@@ -342,11 +342,131 @@ index cec6b26..f54f4de 100644
  msgctxt "#30600"
  msgid "Behaviour"
  msgstr "風格"
+diff --git a/resources/lib/monitor.py b/resources/lib/monitor.py
+index 3b54494..724c5e7 100644
+--- a/resources/lib/monitor.py
++++ b/resources/lib/monitor.py
+@@ -11,8 +11,15 @@ from skip import Skipper
+ from utils import clear_property, decode_json, get_property, get_setting_bool, log as ulog
+ 
+ 
++# How long to wait for a new file's own timing before accepting what Kodi reports (seconds)
++STALE_TIMING_WAIT = 10
++
++
+ class UpNextMonitor(Monitor):
+     """Service monitor for Kodi"""
++    _timing = None  # (file, total time, play time) last seen while tracking
++    _stale_waits = 0
++    _handled_without_data = None  # file marked as handled before any add-on data arrived
+ 
+     def __init__(self):
+         """Constructor for Monitor"""
+@@ -100,6 +107,10 @@ class UpNextMonitor(Monitor):
+                 self.wait_for_player('player.getTime()')
+                 continue
+ 
++            if self.stale_timing(current_file, total_time, play_time):
++                self.wait_for_player("the new file's own position and duration")
++                continue
++
+             self._waiting_for = None
+             try:
+                 self.skipper.update(self.api.data, play_time)
+@@ -112,6 +123,7 @@ class UpNextMonitor(Monitor):
+                 continue
+ 
+             self.player.set_last_file(current_file)
++            had_addon_data = bool(self.api.data)
+             self.log('Show notification as episode (of length %d secs) ends in %d secs' % (total_time, notification_time), 2)
+             # The popup holds this loop until it closes, so the Skip button
+             # could no longer follow playback: close it first.
+@@ -123,6 +135,8 @@ class UpNextMonitor(Monitor):
+                 self.log('Up Next failed for %s:\n%s' % (current_file, format_exc()), 0)
+                 clear_property('service.upnext.dialog')
+                 replaced = False
++            # Only an attempt that showed nothing because the add-on data hadn't arrived yet gets retried
++            self._handled_without_data = None if had_addon_data or self.playback_manager.popup_shown else current_file
+             if replaced:
+                 # Another file replaced this episode while the popup was open, keep tracking it
+                 self.log('Playback was replaced while the popup was open, tracking continues', 2)
+@@ -133,6 +147,33 @@ class UpNextMonitor(Monitor):
+ 
+         self.log('Service stopped', 0)
+ 
++    def stale_timing(self, current_file, total_time, play_time):
++        """Whether Kodi still reports the previous file's position and duration for a new file.
++
++        Right after another file starts (e.g. an add-on calling Player.play), Kodi can report the
++        new file while its position and duration are still the previous file's, near the end."""
++        if self._timing:
++            filename, previous_total, previous_time = self._timing
++            if filename != current_file and total_time == previous_total and play_time >= previous_time:
++                self._stale_waits += 1
++                if self._stale_waits <= STALE_TIMING_WAIT:
++                    return True
++                # A different file of exactly the same length, resumed further in: accept it
++        self._stale_waits = 0
++        self._timing = (current_file, total_time, play_time)
++        return False
++
++    def forget_file_handled_without_data(self):
++        """Give the playing file another look when it was handled before its add-on data arrived"""
++        try:
++            playing_file = self.player.getPlayingFile()
++        except RuntimeError:
++            return
++        if playing_file and playing_file == self._handled_without_data == self.player.get_last_file():
++            self.log('Add-on data arrived for %s after it was handled without it, checking it again' % playing_file, 2)
++            self.player.set_last_file(None)
++        self._handled_without_data = None
++
+     def wait_for_player(self, reason):
+         if self._waiting_for != reason:
+             self.log('Up Next waiting for %s' % reason, 2)
+@@ -224,6 +265,7 @@ class UpNextMonitor(Monitor):
+         self.playback_manager.handle_demo()
+         decoded_data.update(id='%s_play_action' % sender.replace('.SIGNAL', ''))
+         self.api.addon_data_received(decoded_data, encoding=encoding)
++        self.forget_file_handled_without_data()
+         self.player.enable_tracking()
+         self.player.reset_queue()
+         self.remember_playback()
 diff --git a/resources/lib/playbackmanager.py b/resources/lib/playbackmanager.py
-index 650d8d6..54a8af9 100644
+index 650d8d6..c058839 100644
 --- a/resources/lib/playbackmanager.py
 +++ b/resources/lib/playbackmanager.py
-@@ -214,6 +214,7 @@ class PlaybackManager:
+@@ -15,6 +15,7 @@ from utils import addon_path, calculate_progress_steps, clear_property, event, g
+ 
+ class PlaybackManager:
+     _shared_state = {}
++    popup_shown = False  # whether the last launch_up_next() actually showed a popup
+ 
+     def __init__(self):
+         self.__dict__ = self._shared_state
+@@ -41,6 +42,7 @@ class PlaybackManager:
+ 
+     def launch_up_next(self):
+         """Show the popup and act on it. Returns True if other playback replaced the episode while the popup was open"""
++        self.popup_shown = False
+         enable_playlist = get_setting_bool('enablePlaylist')
+         episode, source = self.play_item.get_next()
+         self.log('Playlist setting: %s' % enable_playlist)
+@@ -191,11 +193,13 @@ class PlaybackManager:
+             self.log('showing next up page as played in a row is %s' % self.state.played_in_a_row, 2)
+             next_up_page.set_credits_countdown(int(ceil(credits_duration)) if credits_deadline is not None else None)
+             next_up_page.show()
++            self.popup_shown = True
+             set_property('service.upnext.dialog', 'true')
+             showing_next_up_page = True
+         else:
+             self.log('showing still watching page as played in a row %s' % self.state.played_in_a_row, 2)
+             still_watching_page.show()
++            self.popup_shown = True
+             set_property('service.upnext.dialog', 'true')
+             showing_still_watching_page = True
+         while (self.player.isPlaying() and (total_time - play_time > 1)
+@@ -214,6 +218,7 @@ class PlaybackManager:
              play_time, total_time = position
  
              remaining = total_time - play_time
@@ -355,7 +475,7 @@ index 650d8d6..54a8af9 100644
                  if showing_next_up_page:
                      if credits_deadline is not None:
 diff --git a/resources/lib/upnext.py b/resources/lib/upnext.py
-index b8a7136..9f3e6d8 100644
+index b8a7136..15c9d5c 100644
 --- a/resources/lib/upnext.py
 +++ b/resources/lib/upnext.py
 @@ -1,13 +1,24 @@
@@ -383,12 +503,12 @@ index b8a7136..9f3e6d8 100644
  
      def onInit(self):  # pylint: disable=invalid-name
          super().onInit()
-@@ -15,6 +26,68 @@ class UpNext(Popup):
+@@ -15,6 +26,67 @@ class UpNext(Popup):
              self.getControl(3013).setLabel(localize(30033))  # Stop
          else:
              self.getControl(3013).setLabel(localize(30034))  # Close
++        self.playback_dialog_id = getCurrentWindowDialogId()
 +        if get_setting_bool('selectOpensPlaybackControls'):
-+            self.playback_dialog_id = getCurrentWindowDialogId()
 +            if self.playback_control is None:
 +                self.prepare_playback_controls()
 +            else:
@@ -411,10 +531,9 @@ index b8a7136..9f3e6d8 100644
 +    def open_playback_controls(self):
 +        # The native OSD takes input while the next-episode popup stays visible.
 +        # Returning from the OSD restores the popup without cancelling playback.
-+        if self.playback_control is not None:
-+            self.controls_pending = True
-+            self.controls_seen = False
-+            self.controls_check_at = 0
++        self.controls_pending = True
++        self.controls_seen = False
++        self.controls_check_at = 0
 +        executebuiltin('ActivateWindow(videoosd)')
 +
 +    def restore_after_playback_controls(self):
@@ -464,31 +583,3 @@ index 67b2cf9..f9d7b44 100644
      </category>
      <category label="30600"> <!-- Behaviour -->
          <setting label="30603" type="enum" id="autoPlayMode" lvalues="30040|30041" default="0"/>
-diff --git a/resources/lib/upnext.py b/resources/lib/upnext.py
-index 9f3e6d8..15c9d5c 100644
---- a/resources/lib/upnext.py
-+++ b/resources/lib/upnext.py
-@@ -26,8 +26,8 @@ class UpNext(Popup):
-             self.getControl(3013).setLabel(localize(30033))  # Stop
-         else:
-             self.getControl(3013).setLabel(localize(30034))  # Close
-+        self.playback_dialog_id = getCurrentWindowDialogId()
-         if get_setting_bool('selectOpensPlaybackControls'):
--            self.playback_dialog_id = getCurrentWindowDialogId()
-             if self.playback_control is None:
-                 self.prepare_playback_controls()
-             else:
-@@ -50,10 +50,9 @@ class UpNext(Popup):
-     def open_playback_controls(self):
-         # The native OSD takes input while the next-episode popup stays visible.
-         # Returning from the OSD restores the popup without cancelling playback.
--        if self.playback_control is not None:
--            self.controls_pending = True
--            self.controls_seen = False
--            self.controls_check_at = 0
-+        self.controls_pending = True
-+        self.controls_seen = False
-+        self.controls_check_at = 0
-         executebuiltin('ActivateWindow(videoosd)')
- 
-     def restore_after_playback_controls(self):
