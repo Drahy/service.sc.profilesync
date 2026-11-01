@@ -133,6 +133,43 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
     }
 
 
+def combined_history_response(lists, load, read_item, title, next_title, page=0, size=20, titles=None):
+    """Combine existing category lists without modifying their membership."""
+    ranked = []
+    seen = set()
+    for category, ids in lists:
+        for rank, raw in enumerate(ids):
+            ident = str(raw)
+            pair = (category, ident)
+            if not ident.isdigit() or pair in seen:
+                continue
+            seen.add(pair)
+            try:
+                data = read_item(ident) or {}
+            except Exception:
+                data = {}
+            visits = []
+            for name, value in data.items():
+                if name == 'last_played' or PLAYED_EPISODE.fullmatch(name):
+                    try:
+                        visits.append(datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp())
+                    except (ValueError, TypeError, AttributeError, OverflowError, OSError):
+                        pass
+            ranked.append((max(visits, default=0), -rank, category, ident))
+    ranked.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
+    page = max(0, int(page))
+    menu = []
+    for _, _, category, ident in ranked[page * size:(page + 1) * size]:
+        row = history_response([ident], load, category, title, next_title,
+                               titles=(titles or {}).get(category, {}))
+        menu.extend(row.get('menu') or [])
+    if (page + 1) * size < len(ranked):
+        menu.append({'type':'next', 'title':next_title, 'action':'last',
+                     'id':'last-all', 'url':'/', 'page':str(page + 1)})
+    return {'menu':menu, 'system':{'setContent':'videos', 'setPluginCategory':title,
+                                    'listType':'history', 'addSortMethods':[0]}}
+
+
 def last_seen_item(data, read_last):
     """Keep ordinary folders intact and never resolve a playable stream."""
     if not isinstance(data, dict) or data.get("type") != "dir" or not isinstance(data.get("url"), str):

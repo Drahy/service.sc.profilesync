@@ -2,7 +2,21 @@ import copy
 
 import pytest
 
-from resources.lib.sc_browse import all_seasons, focus_request, history_response, last_seen_item, most_recent_episode
+from resources.lib.sc_browse import all_seasons, combined_history_response, focus_request, history_response, last_seen_item, most_recent_episode
+
+
+def test_combined_history_orders_categories_and_preserves_membership():
+    lists = [('lasts', ['1', '2']), ('lastf', ['3']), ('lastd', ['4'])]
+    dates = {'1': {'last_played:1:2': '2026-01-01 12:00:00'},
+             '2': {}, '3': {'last_played': '2026-01-02 12:00:00'}, '4': {}}
+    original = copy.deepcopy(lists)
+    result = combined_history_response(lists, lambda route: {}, lambda ident: dates[ident],
+                                       'Last Seen', 'Next', size=2)
+    assert [(row['id'], row['lid']) for row in result['menu'][:2]] == [('3', 'lastf'), ('1', 'lasts')]
+    assert result['menu'][2]['id'] == 'last-all'
+    assert len(combined_history_response(lists, lambda route: {}, lambda ident: dates[ident],
+                                         'Last Seen', 'Next', page=1, size=2)['menu']) == 2
+    assert lists == original
 
 
 def test_last_seen_opens_the_exact_shared_season_without_starting_video():
