@@ -34,35 +34,52 @@ def most_recent_episode(data):
     return max(candidates)[2] if candidates else fallback
 
 
-def history_response(ids, load, list_id, title, next_title, page=0, size=20):
+def history_response(ids, load, list_id, title, next_title, page=0, size=20, titles=None):
     """Rebuild local history through supported detail routes, without legacy /Last."""
     ids = list(dict.fromkeys(str(value) for value in ids if str(value).isdigit()))
     page = max(0, int(page))
     selected = ids[page * size : (page + 1) * size]
     menu = []
+    titles = titles if isinstance(titles, dict) else {}
+
+    def unavailable(show):
+        name = titles.get(show)
+        name = name if isinstance(name, str) and name else 'Temporarily unavailable (%s)' % show
+        series = list_id.endswith('lasts')
+        return {'type': 'dir' if series else 'video', 'id': show,
+                'url': ('/FGet/' if series else '/Play/') + show, 'lid': list_id,
+                'info': {'title': name, 'mediatype': 'tvshow' if series else 'movie'}}
     for show in selected:
         try:
             response = load("/FGet/" + show)
         except Exception:
             if list_id.endswith("lasts"):
+                menu.append(unavailable(show))
                 continue
             try:
                 response = load("/Play/" + show)
             except Exception:
+                menu.append(unavailable(show))
                 continue
         if not isinstance(response, dict):
+            menu.append(unavailable(show))
             continue
-        system = response.get("system", {})
+        system = response.get("system") or {}
+        if not isinstance(system, dict):
+            system = {}
         if system.get("setContent") in ("seasons", "episodes"):
             seasons = response.get("menu") or []
             if not seasons:
                 if list_id.endswith("lasts"):
+                    menu.append(unavailable(show))
                     continue
                 try:
                     response = load("/Play/" + show)
                 except Exception:
+                    menu.append(unavailable(show))
                     continue
                 if not isinstance(response, dict):
+                    menu.append(unavailable(show))
                     continue
                 seasons = []
             seed = seasons[0] if seasons else None
@@ -94,10 +111,12 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20):
             }
             item.update(type="video", id=show, url="/Play/" + show, lid=list_id)
         else:
+            menu.append(unavailable(show))
             continue
+        item_title = (item.get('info') or {}).get('title')
+        if isinstance(item_title, str) and item_title:
+            titles[show] = item_title
         menu.append(item)
-    if selected and not menu and (page + 1) * size >= len(ids):
-        raise ValueError("No history metadata is currently available")
     if (page + 1) * size < len(ids):
         menu.append(
             {"type": "next", "title": next_title, "action": "last", "id": list_id, "url": "/", "page": str(page + 1)}

@@ -26,7 +26,9 @@ def timestamp(value):
 
 def read_rows(path):
     if not path.exists():
-        return {}
+        # A missing database is not evidence that every saved item was deleted.
+        # Fail the capture so it cannot create deletion records for all history.
+        raise FileNotFoundError('Stream Cinema storage is unavailable')
     connection = sqlite3.connect(str(path), timeout=0.2)
     try:
         return {key: json.loads(value) for key, value in connection.execute("SELECT item_key,item_value FROM storage")}

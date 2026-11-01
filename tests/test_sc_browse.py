@@ -114,9 +114,10 @@ def test_unavailable_titles_are_not_deleted_from_saved_history():
         ids, lambda route: {} if route.endswith("42") else show_metadata(), "lasts", "Last seen", "Next Page"
     )
     assert ids == ["42", "43"]
-    assert [item["id"] for item in response["menu"]] == ["43"]
-    with pytest.raises(ValueError):
-        history_response(ids, lambda route: {}, "lasts", "Last seen", "Next Page")
+    assert [item["id"] for item in response["menu"]] == ["42", "43"]
+    assert response['menu'][0]['info']['title'] == 'Temporarily unavailable (42)'
+    result = history_response(ids, lambda route: {}, "lasts", "Last seen", "Next Page")
+    assert [item['id'] for item in result['menu']] == ids
 
 
 def test_one_failed_metadata_request_does_not_hide_other_history():
@@ -126,15 +127,27 @@ def test_one_failed_metadata_request_does_not_hide_other_history():
             raise TimeoutError('temporary')
         return show_metadata()
     result = history_response(ids, load, 'lasts', 'Last seen', 'Next Page')
-    assert [item['id'] for item in result['menu']] == ['43']
+    assert [item['id'] for item in result['menu']] == ['42', '43']
     assert ids == ['42', '43']
 
 
 def test_next_page_remains_accessible_when_current_page_temporarily_fails():
     def load(_): raise TimeoutError('temporary')
     result = history_response(['42', '43'], load, 'lasts', 'Last seen', 'Next Page', size=1)
-    assert result['menu'][0]['type'] == 'next'
-    assert result['menu'][0]['page'] == '1'
+    assert result['menu'][0]['id'] == '42'
+    assert result['menu'][1]['type'] == 'next'
+    assert result['menu'][1]['page'] == '1'
+
+
+def test_cached_title_survives_an_unavailable_catalogue_without_readding_removed_entries():
+    titles = {}
+    history_response(['42'], lambda _: show_metadata(), 'lasts', 'Last seen', 'Next', titles=titles)
+    assert titles == {'42': 'Example show'}
+    def offline(_): raise TimeoutError()
+    result = history_response(['42'], offline, 'lasts', 'Last seen', 'Next', titles=titles)
+    assert result['menu'][0]['info']['title'] == 'Example show'
+    assert result['menu'][0]['url'] == '/FGet/42'
+    assert history_response([], offline, 'lasts', 'Last seen', 'Next', titles=titles)['menu'] == []
 
 
 def test_film_history_can_use_play_metadata_if_folder_lookup_fails():
