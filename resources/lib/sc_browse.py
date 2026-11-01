@@ -44,7 +44,8 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
 
     def unavailable(show):
         name = titles.get(show)
-        name = name if isinstance(name, str) and name else 'Temporarily unavailable (%s)' % show
+        if not isinstance(name, str) or not name:
+            return None
         series = list_id.endswith('lasts')
         return {'type': 'dir' if series else 'video', 'id': show,
                 'url': ('/FGet/' if series else '/Play/') + show, 'lid': list_id,
@@ -118,6 +119,7 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
         if isinstance(item_title, str) and item_title:
             titles[show] = item_title
         menu.append(item)
+    menu = [item for item in menu if item is not None]
     if (page + 1) * size < len(ids):
         menu.append(
             {"type": "next", "title": next_title, "action": "last", "id": list_id, "url": "/", "page": str(page + 1)}

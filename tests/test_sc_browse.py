@@ -9,13 +9,14 @@ def test_combined_history_orders_categories_and_preserves_membership():
     lists = [('lasts', ['1', '2']), ('lastf', ['3']), ('lastd', ['4'])]
     dates = {'1': {'last_played:1:2': '2026-01-01 12:00:00'},
              '2': {}, '3': {'last_played': '2026-01-02 12:00:00'}, '4': {}}
+    titles = {'lasts': {'1':'Show one', '2':'Show two'}, 'lastf':{'3':'Movie'}, 'lastd':{'4':'Other'}}
     original = copy.deepcopy(lists)
     result = combined_history_response(lists, lambda route: {}, lambda ident: dates[ident],
-                                       'Last Seen', 'Next', size=2)
+                                       'Last Seen', 'Next', size=2, titles=titles)
     assert [(row['id'], row['lid']) for row in result['menu'][:2]] == [('3', 'lastf'), ('1', 'lasts')]
     assert result['menu'][2]['id'] == 'last-all'
     assert len(combined_history_response(lists, lambda route: {}, lambda ident: dates[ident],
-                                         'Last Seen', 'Next', page=1, size=2)['menu']) == 2
+                                         'Last Seen', 'Next', page=1, size=2, titles=titles)['menu']) == 2
     assert lists == original
 
 
@@ -139,10 +140,10 @@ def test_unavailable_titles_are_not_deleted_from_saved_history():
         ids, lambda route: {} if route.endswith("42") else show_metadata(), "lasts", "Last seen", "Next Page"
     )
     assert ids == ["42", "43"]
-    assert [item["id"] for item in response["menu"]] == ["42", "43"]
-    assert response['menu'][0]['info']['title'] == 'Temporarily unavailable (42)'
+    assert [item["id"] for item in response["menu"]] == ["43"]
     result = history_response(ids, lambda route: {}, "lasts", "Last seen", "Next Page")
-    assert [item['id'] for item in result['menu']] == ids
+    assert result['menu'] == []
+    assert [item['id'] for item in history_response(ids, lambda _: show_metadata(), 'lasts', 'Last seen', 'Next')['menu']] == ids
 
 
 def test_one_failed_metadata_request_does_not_hide_other_history():
@@ -152,16 +153,15 @@ def test_one_failed_metadata_request_does_not_hide_other_history():
             raise TimeoutError('temporary')
         return show_metadata()
     result = history_response(ids, load, 'lasts', 'Last seen', 'Next Page')
-    assert [item['id'] for item in result['menu']] == ['42', '43']
+    assert [item['id'] for item in result['menu']] == ['43']
     assert ids == ['42', '43']
 
 
 def test_next_page_remains_accessible_when_current_page_temporarily_fails():
     def load(_): raise TimeoutError('temporary')
     result = history_response(['42', '43'], load, 'lasts', 'Last seen', 'Next Page', size=1)
-    assert result['menu'][0]['id'] == '42'
-    assert result['menu'][1]['type'] == 'next'
-    assert result['menu'][1]['page'] == '1'
+    assert result['menu'][0]['type'] == 'next'
+    assert result['menu'][0]['page'] == '1'
 
 
 def test_cached_title_survives_an_unavailable_catalogue_without_readding_removed_entries():
