@@ -160,6 +160,16 @@ def test_film_history_can_use_play_metadata_if_folder_lookup_fails():
     assert result['menu'][0]['url'] == '/Play/42'
 
 
+def test_film_history_uses_play_metadata_when_folder_returns_empty():
+    calls = []
+    def load(route):
+        calls.append(route)
+        return {} if route.startswith('/FGet/') else {'info':{'info':{'title':'Film','mediatype':'movie'}}}
+    result = history_response(['42'], load, 'lastf', 'Last seen', 'Next Page')
+    assert calls == ['/FGet/42', '/Play/42']
+    assert result['menu'][0]['info']['title'] == 'Film'
+
+
 def test_movie_history_never_exposes_or_plays_resolved_stream_urls():
     movie = {
         "info": {"info": {"title": "Example film", "mediatype": "movie"}, "i18n_art": {"en": {"poster": "poster"}}},

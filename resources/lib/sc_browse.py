@@ -53,9 +53,10 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
         try:
             response = load("/FGet/" + show)
         except Exception:
-            if list_id.endswith("lasts"):
-                menu.append(unavailable(show))
-                continue
+            response = None
+        if not list_id.endswith("lasts") and (
+            not isinstance(response, dict) or not (response.get("info") or response.get("menu"))
+        ):
             try:
                 response = load("/Play/" + show)
             except Exception:
