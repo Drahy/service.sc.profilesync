@@ -653,3 +653,34 @@ def test_webshare_stop_does_not_steal_user_navigation(environment):
     env.context.now += 2
     assert not worker.entry_requested()
     assert not worker.pending and not env.context.commands
+
+
+def test_missing_episode_returns_to_the_selected_webshare_result(environment):
+    env = environment
+    worker = env.make()
+    origin = 'plugin://plugin.video.sc.websharebridge/?action=episode&show=Example&season=36&episode=19&sc_id=123'
+    selected = 'plugin://plugin.video.sc.websharebridge/?action=play&ident=abc123&name=Example.mkv&size=100&sc_id=123&show=Example&season=36&episode=19'
+    env.context.folder = origin
+    env.context.properties.update({'sc.webshare.origin':origin, 'sc.webshare.item':selected,
+                                   'SC:selected':json.dumps({'provider':'webshare'})})
+    assert sc_episode_return.request_webshare_stop(env.module.xbmcgui.Window(10000),
+        {'info':{'season':36,'episode':19}}, '123', now=env.context.now)
+    env.context.now += 2
+    assert worker.entry_requested()
+    worker.restore()
+    env.context.folder = env.module.restoring_uri(worker.state['checkpoint']['folder'])
+    env.context.items = ['..', uri('/Play/123/36/18')]
+    worker.restore()
+    assert worker.webshare_fallback_active and origin in env.context.commands[-1]
+    env.context.folder = origin
+    env.context.items = ['..', 'other', selected]
+    worker.restore()
+    assert env.control.selected == 2 and not worker.pending
+
+
+def test_webshare_fallback_rejects_wrong_episode_or_unsafe_uri():
+    origin = 'plugin://plugin.video.sc.websharebridge/?action=episode&show=Example&season=36&episode=19&sc_id=123'
+    selected = 'plugin://plugin.video.sc.websharebridge/?action=play&ident=abc&sc_id=123&show=Example&season=36&episode=19'
+    assert sc_episode_return.valid_webshare_result(origin, selected, '123', 36, 19)
+    assert not sc_episode_return.valid_webshare_result(origin, selected.replace('episode=19', 'episode=20'), '123', 36, 19)
+    assert not sc_episode_return.valid_webshare_result(origin + '\")', selected, '123', 36, 19)

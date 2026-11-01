@@ -109,6 +109,8 @@ class NavigationRecovery:
         self.retry_at = None
         self.retry_in_flight = False
         self.webshare_origin = None
+        self.webshare_fallback = None
+        self.webshare_fallback_active = False
         self.force_entry = False
         self.wake_serial = getattr(monitor, 'navigation_wake', 0)
         self.sleeping = monitor.is_DPMS or monitor.is_screensaver
@@ -248,6 +250,8 @@ class NavigationRecovery:
         self.retry_count = 0
         self.retry_in_flight = False
         self.webshare_origin = None
+        self.webshare_fallback = None
+        self.webshare_fallback_active = False
         self.pending = False
         self.state['session']['restoring'] = False
         self._save()
@@ -296,6 +300,11 @@ class NavigationRecovery:
         home.clearProperty(episode_return.REQUEST_PROPERTY)
         self.state['checkpoint'] = self._target_checkpoint(target)
         self.webshare_origin = folder if webshare_return else None
+        selected = data.get('selected_item', '')
+        season = int(target['url'].rsplit('/', 1)[-1])
+        episode = int(target['resume_episode'])
+        self.webshare_fallback = ((folder, selected) if webshare_return and
+                                  episode_return.valid_webshare_result(folder, selected, target['id'], season, episode) else None)
         if webshare_return:
             xbmc.log('[SC navigation] Webshare return accepted', xbmc.LOGINFO)
         self.pending, self.issued, self.force_entry = True, False, True
@@ -355,6 +364,9 @@ class NavigationRecovery:
         if xbmc.getCondVisibility('System.HasModalDialog') or xbmc.getCondVisibility('Container.IsUpdating'):
             if now - self.started > self.RESTORE_TIMEOUT:
                 self._finish_restore()
+            return
+        if self.webshare_fallback_active:
+            self._restore_webshare_result(now)
             return
         checkpoint = self.state['checkpoint']
         window_id = xbmcgui.getCurrentWindowId()
@@ -434,8 +446,40 @@ class NavigationRecovery:
             control.selectItem(position)
         elif self.retry_in_flight:
             return
+        elif self.webshare_fallback:
+            self.webshare_fallback_active = True
+            self.deadline = now + self.RESTORE_TIMEOUT
+            xbmc.executebuiltin('Container.Update("%s",replace)' % self.webshare_fallback[0])
+            return
         self._finish_restore()
         debug('Navigation recovery finished' if position is not None else 'Navigation recovery: saved item unavailable')
+
+    def _restore_webshare_result(self, now):
+        folder, item = self.webshare_fallback
+        if now > self.deadline or xbmcgui.getCurrentWindowId() != VIDEO_WINDOW:
+            self._finish_restore()
+            return
+        current = xbmc.getInfoLabel('Container.FolderPath')
+        if current != folder:
+            if safe_folder(current) == self.state['checkpoint']['folder']:
+                return
+            self._finish_restore()
+            return
+        window = xbmcgui.Window(VIDEO_WINDOW)
+        identifier, control = self._list_control(window)
+        if control is None:
+            return
+        count = (xbmc.getInfoLabel('Container(%s).NumAllItems' % identifier)
+                 or xbmc.getInfoLabel('Container(%s).NumItems' % identifier))
+        if not count or int(count) == 0:
+            return
+        for index in range(int(count) + 1):
+            candidate = xbmc.getInfoLabel('Container(%s).ListItemAbsolute(%s).FileNameAndPath' % (identifier, index))
+            if candidate == item:
+                window.setFocusId(identifier)
+                control.selectItem(index)
+                break
+        self._finish_restore()
 
     def run(self):
         while not self.monitor.abortRequested():

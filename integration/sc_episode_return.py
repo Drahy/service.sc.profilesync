@@ -4,7 +4,7 @@ import json
 import os
 import re
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qs, urlsplit
 
 INSIDE_PROPERTY = 'sc.profile.browse.inside'
 REQUEST_PROPERTY = 'sc.profile.browse.open'
@@ -91,11 +91,37 @@ def request_webshare_stop(window, item, show_id, now=None):
         if not re.fullmatch(r'[1-9][0-9]{0,11}', show) or not 0 <= season <= 999 or not 1 <= episode <= 9999:
             return False
         target = {'id':show, 'url':'/FGet/%s/%s' % (show, season), 'resume_episode':str(episode)}
-        window.setProperty(REQUEST_PROPERTY, json.dumps({'target':target, 'source':'webshare-stop',
+        selected_item = window.getProperty('sc.webshare.item')
+        result = {'target':target, 'source':'webshare-stop',
                            'origin':origin, 'not_before':(now if now is not None else time.time()) + 2,
-                           'expires':(now if now is not None else time.time()) + 90}))
+                           'expires':(now if now is not None else time.time()) + 90}
+        if valid_webshare_result(origin, selected_item, show, season, episode):
+            result['selected_item'] = selected_item
+        window.setProperty(REQUEST_PROPERTY, json.dumps(result))
         return True
     except (TypeError, ValueError, KeyError, AttributeError):
         return False
     finally:
         window.clearProperty('sc.webshare.origin')
+        window.clearProperty('sc.webshare.item')
+
+
+def valid_webshare_result(origin, selected, show, season, episode):
+    """Accept only a matching companion result, never an arbitrary Kodi command."""
+    try:
+        if any(not isinstance(v, str) or len(v) > 4096 or any(c in v for c in ('"', '\r', '\n')) for v in (origin, selected)):
+            return False
+        folder, entry = urlsplit(origin), urlsplit(selected)
+        if any(p.scheme != 'plugin' or p.netloc != 'plugin.video.sc.websharebridge' or p.path != '/' or p.fragment for p in (folder, entry)):
+            return False
+        a, b = parse_qs(folder.query), parse_qs(entry.query)
+        if any(len(values) != 1 for values in list(a.values()) + list(b.values())):
+            return False
+        return (a.get('action') == ['episode'] and b.get('action') == ['play']
+                and a.get('sc_id') == b.get('sc_id') == [str(show)]
+                and a.get('season') == b.get('season') == [str(season)]
+                and a.get('episode') == b.get('episode') == [str(episode)]
+                and a.get('show') == b.get('show') and bool(a.get('show'))
+                and bool(re.fullmatch(r'[A-Za-z0-9_-]{1,128}', b.get('ident', [''])[0])))
+    except (ValueError, TypeError, IndexError):
+        return False

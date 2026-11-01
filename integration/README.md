@@ -104,7 +104,8 @@ against compatible sources. Account settings remain device-local.
 When a season search carries an SC show ID, the companion associates the
 entered season and episode numbers with that show even if the catalog has no
 row for the episode. This does not create a Stream Cinema catalog entry: the
-return can open the season, but cannot select a row that does not exist. A
+return first opens the season; if its row is missing, it returns to the original
+Webshare results and selects the played file when it is still available. A
 generic filename search without that identity has no SC history or matched
 episode return. Playback of an absent catalog episode remains subject to
 provider availability and has not been established by the existing live tests.
