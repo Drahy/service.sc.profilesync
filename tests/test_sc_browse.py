@@ -19,6 +19,17 @@ def test_combined_history_orders_categories_and_preserves_membership():
     assert lists == original
 
 
+def test_combined_history_caches_titles_and_uses_them_when_catalogue_is_down():
+    cached = {'lastf': {}}
+    movie = {'info': {'id':'3', 'info': {'title':'A Movie', 'mediatype':'movie'}}}
+    combined_history_response([('lastf',['3'])], lambda _: movie, lambda _: {},
+                              'Last Seen', 'Next', titles=cached)
+    assert cached['lastf']['3'] == 'A Movie'
+    down = combined_history_response([('lastf',['3'])], lambda _: {}, lambda _: {},
+                                     'Last Seen', 'Next', titles=cached)
+    assert down['menu'][0]['info']['title'] == 'A Movie'
+
+
 def test_last_seen_opens_the_exact_shared_season_without_starting_video():
     original = {"type": "dir", "url": "/FGet/42?dub=1", "id": "42", "title": "Show"}
     item = last_seen_item(original, lambda show: "9x3" if show == "42" else None)
