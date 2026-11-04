@@ -12,10 +12,13 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
   the existing history and search integrations. The root offers Webshare and Up Next
   settings even when the catalogue fails; unavailable addons are omitted.
 - Apply `patch_history_cache.transform` after the history-title and unified-history
-  integrations, then copy the current `resources/lib/sc_browse.py` to SC's
-  `resources/lib/common/resume_browse.py`. Locally cached history metadata expires
-  after six hours and is reused during outages. A confirmed service-wide HTTP or
-  network error stops further detail requests for the current history view.
+  integrations, then apply `patch_history_rate.transform` and copy the current
+  `resources/lib/sc_browse.py` to SC's `resources/lib/common/resume_browse.py`.
+  Previously resolved metadata is reused without automatic expiry; titles and art
+  may therefore stay unchanged until the local metadata cache is cleared. A confirmed
+  service-wide error stops further detail requests for the current history view.
+  HTTP 429 pauses new local history lookups for at least one hour or the server's
+  longer Retry-After interval; this guard is per device, not account-wide.
 - Apply `patch_history_titles.transform` to the compatible installed
   `resources/lib/streamcinema.py`. Last Seen keeps each saved entry visible
   during catalogue errors when a locally cached title is available; unnamed

@@ -42,8 +42,8 @@ def test_history_detail_cache_avoids_repeat_requests_and_preserves_art():
     assert calls == ['/FGet/42']
     assert second['menu'] == first['menu']
     assert second['menu'][0]['i18n_art']
-    history_response(['42'], load, 'lasts', 'Last seen', 'Next', details=cache, now=100 + 21600)
-    assert len(calls) == 2
+    history_response(['42'], load, 'lasts', 'Last seen', 'Next', details=cache, now=100 + 86400 * 365)
+    assert len(calls) == 1
 
 
 def test_combined_history_stops_requests_after_server_failure_and_uses_saved_details():
@@ -53,17 +53,47 @@ def test_combined_history_stops_requests_after_server_failure_and_uses_saved_det
         response = SimpleNamespace(status_code=503)
 
     cache = {'lasts': {}}
-    combined_history_response([('lasts', ['1', '2'])], lambda _: show_metadata(), lambda _: {},
+    combined_history_response([('lasts', ['1'])], lambda _: show_metadata(), lambda _: {},
                               'Last seen', 'Next', details=cache, now=1)
     calls = []
 
     def fail(route):
         calls.append(route)
         raise Failure()
-    result = combined_history_response([('lasts', ['1', '2'])], fail, lambda _: {},
+    result = combined_history_response([('lasts', ['1', '2', '3'])], fail, lambda _: {},
                                        'Last seen', 'Next', details=cache, now=30000)
     assert len(calls) == 1
-    assert [item['id'] for item in result['menu']] == ['1', '2']
+    assert [item['id'] for item in result['menu']] == ['1']
+
+
+@pytest.mark.parametrize('header,wait', [('', 3600), ('10', 3600), ('7200', 7200)])
+def test_rate_limit_cooldown_is_kept_between_history_views(header, wait):
+    from types import SimpleNamespace
+
+    class RateLimited(Exception):
+        response = SimpleNamespace(status_code=429, headers={'Retry-After': header})
+
+    state, calls = {}, []
+
+    def limited(route):
+        calls.append(route)
+        raise RateLimited()
+    history_response(['1', '2'], limited, 'lasts', 'History', 'Next', rate_state=state, now=100)
+    assert len(calls) == 1 and state['until'] == 100 + wait
+    history_response(['1'], limited, 'lasts', 'History', 'Next', rate_state=state, now=100 + wait - 1)
+    assert len(calls) == 1
+    history_response(['1'], limited, 'lasts', 'History', 'Next', rate_state=state, now=100 + wait)
+    assert len(calls) == 2
+
+
+def test_cached_history_remains_visible_during_rate_limit():
+    cache = {}
+    history_response(['42'], lambda _: show_metadata(), 'lasts', 'History', 'Next', details=cache, now=1)
+    def forbidden(_):
+        pytest.fail('Cached details should not fetch')
+    result = history_response(['42'], forbidden, 'lasts', 'History', 'Next',
+                              details=cache, rate_state={'until': 3600}, now=2)
+    assert result['menu'][0]['id'] == '42'
 
 
 def test_item_not_found_does_not_suppress_remaining_history_requests():

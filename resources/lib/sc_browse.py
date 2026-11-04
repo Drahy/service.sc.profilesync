@@ -2,9 +2,11 @@
 
 import json
 import copy
+import math
 import re
 import time
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit, urlunsplit
 
 FOCUS_PROPERTY = "sc.profile.browse.focus"
@@ -12,15 +14,20 @@ SERIES = re.compile(r"^/FGet/(\d+)$")
 SEASON = re.compile(r"^/FGet/(\d+)/(\d+)$")
 LAST = re.compile(r"^(\d+)x([1-9]\d*)$")
 PLAYED_EPISODE = re.compile(r"^last_played:(\d+):([1-9]\d*)$")
-DETAIL_TTL = 6 * 60 * 60
+RATE_RETRY_MINIMUM = 60 * 60
 
 
-def guarded_loader(load):
+def guarded_loader(load, rate_state=None, now=None):
     """Stop a single history view from repeating a confirmed service-wide failure."""
     failed = [False]
+    clock = time.time if now is None else lambda: now
 
     def guarded(route):
-        if failed[0]:
+        try:
+            until = float(rate_state.get('until') or 0) if rate_state is not None else 0
+        except Exception:
+            until = 0
+        if failed[0] or clock() < until:
             return None
         try:
             return load(route)
@@ -31,6 +38,22 @@ def guarded_loader(load):
                              and name in ('ConnectionError', 'ConnectTimeout', 'ReadTimeout', 'Timeout'))
             if status in (429, 500, 502, 503, 504) or request_error:
                 failed[0] = True
+            if status == 429 and rate_state is not None:
+                response = getattr(error, 'response', None)
+                retry_after = (getattr(response, 'headers', None) or {}).get('Retry-After', '')
+                try:
+                    delay = float(retry_after)
+                except (ValueError, TypeError):
+                    try:
+                        delay = parsedate_to_datetime(retry_after).timestamp() - clock()
+                    except (ValueError, TypeError, OverflowError, OSError):
+                        delay = 0
+                if not math.isfinite(delay):
+                    delay = 0
+                try:
+                    rate_state['until'] = clock() + max(RATE_RETRY_MINIMUM, delay)
+                except Exception:
+                    pass
             raise
     return guarded
 
@@ -55,7 +78,8 @@ def most_recent_episode(data):
     return max(candidates)[2] if candidates else fallback
 
 
-def history_response(ids, load, list_id, title, next_title, page=0, size=20, titles=None, details=None, now=None):
+def history_response(ids, load, list_id, title, next_title, page=0, size=20, titles=None, details=None, now=None,
+                     rate_state=None):
     """Rebuild local history through supported detail routes, without legacy /Last."""
     ids = list(dict.fromkeys(str(value) for value in ids if str(value).isdigit()))
     page = max(0, int(page))
@@ -63,8 +87,8 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
     menu = []
     titles = titles if isinstance(titles, dict) else {}
     details = details if isinstance(details, dict) else {}
+    load = guarded_loader(load, rate_state=rate_state, now=now)
     now = time.time() if now is None else now
-    load = guarded_loader(load)
 
     def unavailable(show):
         saved = details.get(show)
@@ -80,13 +104,8 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
     for show in selected:
         cached = details.get(show)
         if isinstance(cached, dict) and isinstance(cached.get('item'), dict):
-            try:
-                fresh = 0 <= now - float(cached.get('at', 0)) < DETAIL_TTL
-            except (ValueError, TypeError):
-                fresh = False
-            if fresh:
-                menu.append(copy.deepcopy(cached['item']))
-                continue
+            menu.append(copy.deepcopy(cached['item']))
+            continue
         try:
             response = load("/FGet/" + show)
         except Exception:
@@ -172,7 +191,8 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
     }
 
 
-def combined_history_response(lists, load, read_item, title, next_title, page=0, size=20, titles=None, details=None, now=None):
+def combined_history_response(lists, load, read_item, title, next_title, page=0, size=20, titles=None, details=None, now=None,
+                              rate_state=None):
     """Combine existing category lists without modifying their membership."""
     ranked = []
     seen = set()
@@ -198,7 +218,7 @@ def combined_history_response(lists, load, read_item, title, next_title, page=0,
     ranked.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
     page = max(0, int(page))
     menu = []
-    load = guarded_loader(load)
+    load = guarded_loader(load, rate_state=rate_state, now=now)
     for _, _, category, ident in ranked[page * size:(page + 1) * size]:
         row = history_response([ident], load, category, title, next_title,
                                titles=(titles or {}).get(category, {}), details=(details or {}).get(category, {}), now=now)
