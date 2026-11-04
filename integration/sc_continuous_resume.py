@@ -1,22 +1,129 @@
 """A bounded resume choice for episode transitions initiated by Up Next."""
 
 import math
+import os
 import re
+import sqlite3
+import threading
 import time
+import uuid
 
 FLAG = 'sc_next_resume'
+TOKEN = 'sc_next_token'
 GRACE_SECONDS = 5
+PENDING_LEASE_SECONDS = 60
+HEARTBEAT_SECONDS = 15
+COMPLETED_GRACE_SECONDS = 15
 EPISODE_ROUTE = re.compile(r'/Play/[A-Za-z0-9_-]+/[0-9]+/[1-9][0-9]*')
 ACTION_CANCEL = {9, 10, 13, 92, 216}
 
 
-def play_command(play_info, make_uri):
+def play_command(play_info, make_uri, token=''):
     """The provider callback marks only episodes and bypasses Kodi's first prompt."""
     uri = make_uri(dict(play_info))
     if not EPISODE_ROUTE.fullmatch(str(play_info.get('url', ''))):
         return 'PlayMedia(%s)' % uri
     separator = '&' if '?' in uri else '?'
-    return 'PlayMedia(%s%s%s=31,noresume)' % (uri, separator, FLAG)
+    token_arg = '&%s=%s' % (TOKEN, token.encode('ascii').hex()) if token else ''
+    return 'PlayMedia(%s%s%s=31%s,noresume)' % (uri, separator, FLAG, token_arg)
+
+
+def _guard_path():
+    import xbmcvfs
+    return xbmcvfs.translatePath('special://profile/addon_data/plugin.video.stream-cinema/sc_next_transition.db')
+
+
+def _connect(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    connection = sqlite3.connect(path, timeout=0.5)
+    connection.execute('CREATE TABLE IF NOT EXISTS transitions '
+                       '(route TEXT PRIMARY KEY, token TEXT NOT NULL, started REAL NOT NULL, expires REAL NOT NULL)')
+    return connection
+
+
+def claim_transition(play_info, path=None, now=None):
+    """Atomically ignore repeated Up Next callbacks for a transition already in progress."""
+    route = str(play_info.get('url', ''))
+    if not EPISODE_ROUTE.fullmatch(route):
+        return ''  # Preserve ordinary non-episode playback.
+    now = time.time() if now is None else float(now)
+    token = uuid.uuid4().hex
+    try:
+        connection = _connect(path or _guard_path())
+        try:
+            connection.execute('BEGIN IMMEDIATE')
+            row = connection.execute('SELECT started, expires FROM transitions WHERE route = ?', (route,)).fetchone()
+            if row and row[0] <= now < row[1]:
+                connection.commit()
+                return None
+            connection.execute('DELETE FROM transitions WHERE expires <= ? OR started > ?', (now, now))
+            connection.execute('INSERT OR REPLACE INTO transitions VALUES (?, ?, ?, ?)',
+                               (route, token, now, now + PENDING_LEASE_SECONDS))
+            connection.commit()
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error):
+        return ''  # Never prevent playback if local storage is unavailable.
+    return token
+
+
+def finish_transition(args, success, path=None, now=None):
+    """Release a failed/cancelled request; briefly suppress duplicates after success."""
+    route, token = str(args.get('url', '')), str(args.get(TOKEN, ''))
+    if args.get(FLAG) != '1' or not EPISODE_ROUTE.fullmatch(route) or not re.fullmatch('[0-9a-f]{32}', token):
+        return
+    now = time.time() if now is None else float(now)
+    try:
+        connection = _connect(path or _guard_path())
+        try:
+            with connection:
+                if success:
+                    connection.execute('UPDATE transitions SET started = ?, expires = ? WHERE route = ? AND token = ?',
+                                       (now, now + COMPLETED_GRACE_SECONDS, route, token))
+                else:
+                    connection.execute('DELETE FROM transitions WHERE route = ? AND token = ?', (route, token))
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error):
+        pass
+
+
+def renew_transition(args, path=None, now=None):
+    route, token = str(args.get('url', '')), str(args.get(TOKEN, ''))
+    if args.get(FLAG) != '1' or not EPISODE_ROUTE.fullmatch(route) or not re.fullmatch('[0-9a-f]{32}', token):
+        return
+    now = time.time() if now is None else float(now)
+    try:
+        connection = _connect(path or _guard_path())
+        try:
+            with connection:
+                connection.execute('UPDATE transitions SET started = ?, expires = ? WHERE route = ? AND token = ?',
+                                   (now, now + PENDING_LEASE_SECONDS, route, token))
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error):
+        pass
+
+
+def start_heartbeat(args):
+    if args.get(FLAG) != '1' or not re.fullmatch('[0-9a-f]{32}', str(args.get(TOKEN, ''))):
+        return None
+    stopped = threading.Event()
+
+    def run():
+        while not stopped.wait(HEARTBEAT_SECONDS):
+            renew_transition(args)
+
+    thread = threading.Thread(target=run, name='sc-next-transition', daemon=True)
+    thread.start()
+    return stopped, thread
+
+
+def stop_heartbeat(heartbeat):
+    if heartbeat:
+        stopped, thread = heartbeat
+        stopped.set()
+        thread.join(timeout=1)
 
 
 def saved_position(data, read):

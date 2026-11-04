@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -14,6 +15,61 @@ def test_provider_episode_request_bypasses_only_the_native_resume_prompt():
     assert resume.play_command(original, lambda value: 'plugin://sc/?url=encoded') == 'PlayMedia(plugin://sc/?url=encoded&sc_next_resume=31,noresume)'
     assert original == {'url': '/Play/m_example/3/2'}
     assert resume.play_command({'url': '/Play/42'}, lambda value: 'plugin://sc/movie') == 'PlayMedia(plugin://sc/movie)'
+
+
+def test_transition_token_survives_kodi_hex_encoded_parameters():
+    token = '0123456789abcdef0123456789abcdef'
+    cmd = resume.play_command({'url': '/Play/42/3/2'}, lambda _: 'plugin://sc/?url=encoded', token)
+    encoded = cmd.split('sc_next_token=')[1].split(',')[0]
+    assert bytes.fromhex(encoded).decode('ascii') == token
+
+
+def test_duplicate_callbacks_are_atomic_and_cancellation_allows_retry(tmp_path):
+    path = str(tmp_path / 'guard.db')
+    info = {'url': '/Play/42/3/2'}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        claims = list(pool.map(lambda _: resume.claim_transition(info, path=path, now=100), range(8)))
+    tokens = [value for value in claims if value]
+    assert len(tokens) == 1 and claims.count(None) == 7
+    args = {resume.FLAG: '1', resume.TOKEN: tokens[0], 'url': info['url']}
+    resume.finish_transition(dict(args, sc_next_token='f' * 32), False, path=path, now=101)
+    assert resume.claim_transition(info, path=path, now=102) is None
+    resume.finish_transition(args, False, path=path, now=103)
+    assert resume.claim_transition(info, path=path, now=104)
+
+
+def test_completed_transition_blocks_late_duplicate_briefly_but_not_other_episodes(tmp_path):
+    path = str(tmp_path / 'guard.db')
+    info = {'url': '/Play/42/3/2'}
+    token = resume.claim_transition(info, path=path, now=100)
+    args = {resume.FLAG: '1', resume.TOKEN: token, 'url': info['url']}
+    resume.finish_transition(args, True, path=path, now=109)
+    assert resume.claim_transition(info, path=path, now=110) is None
+    assert resume.claim_transition({'url': '/Play/42/3/3'}, path=path, now=110)
+    assert resume.claim_transition(info, path=path, now=124)
+
+
+def test_expired_or_clock_reset_leases_never_block_future_playback(tmp_path):
+    path = str(tmp_path / 'guard.db')
+    info = {'url': '/Play/42/3/2'}
+    assert resume.claim_transition(info, path=path, now=100)
+    assert resume.claim_transition(info, path=path, now=99)
+    assert resume.claim_transition(info, path=path, now=99 + resume.PENDING_LEASE_SECONDS)
+    assert resume.claim_transition({'url': '/Play/42'}, path=path, now=100) == ''
+
+
+def test_active_transition_renews_while_the_viewer_decides(tmp_path):
+    path = str(tmp_path / 'guard.db')
+    info = {'url': '/Play/42/3/2'}
+    token = resume.claim_transition(info, path=path, now=100)
+    args = {resume.FLAG: '1', resume.TOKEN: token, 'url': info['url']}
+    resume.renew_transition(args, path=path, now=150)
+    assert resume.claim_transition(info, path=path, now=170) is None
+    assert resume.claim_transition(info, path=path, now=210)
+
+
+def test_manual_requests_never_start_a_guard_thread():
+    assert resume.start_heartbeat({}) is None
 
 
 def test_idle_countdown_starts_at_visibility_and_defaults_to_beginning():
@@ -72,3 +128,17 @@ def test_resolved_item_receives_only_the_explicit_choice(chosen, expected):
 def test_time_format_includes_hours_only_when_needed():
     assert resume.timestamp(83) == '01:23'
     assert resume.timestamp(3661) == '1:01:01'
+
+
+def test_resume_dialog_has_wide_vertically_navigable_choices():
+    from pathlib import Path
+    import xml.etree.ElementTree as ET
+    layout = Path(__file__).parents[1] / 'integration/skins/default/1080i/sc-next-resume.xml'
+    root = ET.parse(layout).getroot()
+    buttons = {int(control.get('id')): control for control in root.iter('control')
+               if control.get('type') == 'button'}
+    assert set(buttons) == {10, 11, 12}
+    assert all(int(button.findtext('width')) >= 800 for button in buttons.values())
+    assert [int(buttons[i].findtext('top')) for i in (10, 11, 12)] == sorted(
+        int(buttons[i].findtext('top')) for i in (10, 11, 12))
+    assert [buttons[i].findtext('ondown') for i in (10, 11, 12)] == ['11', '12', '10']

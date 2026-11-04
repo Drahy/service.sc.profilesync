@@ -85,7 +85,16 @@ This setting is currently local to each device and is not in SC Profile Sync 0.1
 
 Apply `continuous-resume.patch` from the Stream Cinema addon root, copy `sc_continuous_resume.py` to `resources/lib/common/continuous_resume.py`, and copy the contents of `skins/` to `resources/skins/`. Check the patch first with `git apply --check --ignore-space-change`; apply with `git apply --ignore-space-change`, then restart Kodi. The patch adds English, Czech and Slovak strings. It is a separate provider integration; the official Up Next package remains unchanged.
 
-When Up Next requests an episode with a valid saved position, Stream Cinema offers **Play from beginning**, **Resume from the saved time**, and **Cancel**. Five seconds after the choice becomes visible, inactivity selects the beginning. Arrow navigation pauses that deadline; Back, Stop and Cancel abandon the transition. Episodes without an unfinished position start immediately. Ordinary manual playback retains Kodi's existing resume behavior, and the choice never clears a saved position or changes when Up Next offers the following episode.
+On the already integrated Stream Cinema 2.6.7.1+k19 build, apply both functions
+from `patch_next_transition_guard.py` to `resources/lib/services/monitor.py`
+and `resources/lib/streamcinema.py`, respectively, and install the current helper
+and dialog layout. Duplicate Up Next callbacks for a pending episode share a
+short local SQLite lease; an active request renews it, cancellation or failure
+releases it, and success suppresses late duplicates for 15 seconds. A crashed
+request expires within a minute. If the guard database is unavailable, playback
+continues without duplicate protection. This is local and makes no server calls.
+
+When Up Next requests an episode with a valid saved position, Stream Cinema offers **Play from beginning**, **Resume from the saved time**, and **Cancel** in three full-width rows. Five seconds after the choice becomes visible, inactivity selects the beginning. Arrow navigation pauses that deadline; Back, Stop and Cancel abandon the transition. Episodes without an unfinished position start immediately. Ordinary manual playback retains Kodi's existing resume behavior, and the choice never clears a saved position or changes when Up Next offers the following episode.
 
 The notification callback only marks the playback request. The plugin resolver owns the cancellable dialog, so the service callback remains free to handle shutdown. Kodi's `PlayMedia(...,noresume)` bypasses its earlier resume menu; an explicit resume choice is returned through the resolved item's video resume point. These companion files must be reapplied to a reviewed future Stream Cinema update; SC Profile Sync's released ZIP does not install them.
 
