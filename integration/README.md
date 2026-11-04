@@ -8,6 +8,14 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
 - Copy `resources/lib/sc_browse.py` to SC's `resources/lib/common/resume_browse.py`.
 - Apply `patch_upnext_settings.settings` to the reviewed Stream Cinema settings.
   The shortcut opens Up Next's own settings and is hidden when it is unavailable.
+- Apply `patch_root_access.transform` to `resources/lib/streamcinema.py` after
+  the existing history and search integrations. The root offers Webshare and Up Next
+  settings even when the catalogue fails; unavailable addons are omitted.
+- Apply `patch_history_cache.transform` after the history-title and unified-history
+  integrations, then copy the current `resources/lib/sc_browse.py` to SC's
+  `resources/lib/common/resume_browse.py`. Locally cached history metadata expires
+  after six hours and is reused during outages. A confirmed service-wide HTTP or
+  network error stops further detail requests for the current history view.
 - Apply `patch_history_titles.transform` to the compatible installed
   `resources/lib/streamcinema.py`. Last Seen keeps each saved entry visible
   during catalogue errors when a locally cached title is available; unnamed

@@ -31,6 +31,59 @@ def test_combined_history_caches_titles_and_uses_them_when_catalogue_is_down():
     assert down['menu'][0]['info']['title'] == 'A Movie'
 
 
+def test_history_detail_cache_avoids_repeat_requests_and_preserves_art():
+    calls, cache = [], {}
+
+    def load(route):
+        calls.append(route)
+        return show_metadata()
+    first = history_response(['42'], load, 'lasts', 'Last seen', 'Next', details=cache, now=100)
+    second = history_response(['42'], load, 'lasts', 'Last seen', 'Next', details=cache, now=101)
+    assert calls == ['/FGet/42']
+    assert second['menu'] == first['menu']
+    assert second['menu'][0]['i18n_art']
+    history_response(['42'], load, 'lasts', 'Last seen', 'Next', details=cache, now=100 + 21600)
+    assert len(calls) == 2
+
+
+def test_combined_history_stops_requests_after_server_failure_and_uses_saved_details():
+    from types import SimpleNamespace
+
+    class Failure(Exception):
+        response = SimpleNamespace(status_code=503)
+
+    cache = {'lasts': {}}
+    combined_history_response([('lasts', ['1', '2'])], lambda _: show_metadata(), lambda _: {},
+                              'Last seen', 'Next', details=cache, now=1)
+    calls = []
+
+    def fail(route):
+        calls.append(route)
+        raise Failure()
+    result = combined_history_response([('lasts', ['1', '2'])], fail, lambda _: {},
+                                       'Last seen', 'Next', details=cache, now=30000)
+    assert len(calls) == 1
+    assert [item['id'] for item in result['menu']] == ['1', '2']
+
+
+def test_item_not_found_does_not_suppress_remaining_history_requests():
+    from types import SimpleNamespace
+
+    class Missing(Exception):
+        response = SimpleNamespace(status_code=404)
+
+    calls = []
+
+    def load(route):
+        calls.append(route)
+        if route.endswith('/1'):
+            raise Missing()
+        return show_metadata()
+    result = history_response(['1', '2'], load, 'lasts', 'Last seen', 'Next')
+    assert calls == ['/FGet/1', '/FGet/2']
+    assert [item['id'] for item in result['menu']] == ['2']
+
+
 def test_last_seen_opens_the_exact_shared_season_without_starting_video():
     original = {"type": "dir", "url": "/FGet/42?dub=1", "id": "42", "title": "Show"}
     item = last_seen_item(original, lambda show: "9x3" if show == "42" else None)

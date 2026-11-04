@@ -12,6 +12,27 @@ SERIES = re.compile(r"^/FGet/(\d+)$")
 SEASON = re.compile(r"^/FGet/(\d+)/(\d+)$")
 LAST = re.compile(r"^(\d+)x([1-9]\d*)$")
 PLAYED_EPISODE = re.compile(r"^last_played:(\d+):([1-9]\d*)$")
+DETAIL_TTL = 6 * 60 * 60
+
+
+def guarded_loader(load):
+    """Stop a single history view from repeating a confirmed service-wide failure."""
+    failed = [False]
+
+    def guarded(route):
+        if failed[0]:
+            return None
+        try:
+            return load(route)
+        except Exception as error:
+            status = getattr(getattr(error, 'response', None), 'status_code', None)
+            name = type(error).__name__
+            request_error = (type(error).__module__.startswith('requests.')
+                             and name in ('ConnectionError', 'ConnectTimeout', 'ReadTimeout', 'Timeout'))
+            if status in (429, 500, 502, 503, 504) or request_error:
+                failed[0] = True
+            raise
+    return guarded
 
 
 def most_recent_episode(data):
@@ -34,15 +55,21 @@ def most_recent_episode(data):
     return max(candidates)[2] if candidates else fallback
 
 
-def history_response(ids, load, list_id, title, next_title, page=0, size=20, titles=None):
+def history_response(ids, load, list_id, title, next_title, page=0, size=20, titles=None, details=None, now=None):
     """Rebuild local history through supported detail routes, without legacy /Last."""
     ids = list(dict.fromkeys(str(value) for value in ids if str(value).isdigit()))
     page = max(0, int(page))
     selected = ids[page * size : (page + 1) * size]
     menu = []
     titles = titles if isinstance(titles, dict) else {}
+    details = details if isinstance(details, dict) else {}
+    now = time.time() if now is None else now
+    load = guarded_loader(load)
 
     def unavailable(show):
+        saved = details.get(show)
+        if isinstance(saved, dict) and isinstance(saved.get('item'), dict):
+            return copy.deepcopy(saved['item'])
         name = titles.get(show)
         if not isinstance(name, str) or not name:
             return None
@@ -51,6 +78,15 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
                 'url': ('/FGet/' if series else '/Play/') + show, 'lid': list_id,
                 'info': {'title': name, 'mediatype': 'tvshow' if series else 'movie'}}
     for show in selected:
+        cached = details.get(show)
+        if isinstance(cached, dict) and isinstance(cached.get('item'), dict):
+            try:
+                fresh = 0 <= now - float(cached.get('at', 0)) < DETAIL_TTL
+            except (ValueError, TypeError):
+                fresh = False
+            if fresh:
+                menu.append(copy.deepcopy(cached['item']))
+                continue
         try:
             response = load("/FGet/" + show)
         except Exception:
@@ -118,6 +154,7 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
         item_title = (item.get('info') or {}).get('title')
         if isinstance(item_title, str) and item_title:
             titles[show] = item_title
+            details[show] = {'at': now, 'item': copy.deepcopy(item)}
         menu.append(item)
     menu = [item for item in menu if item is not None]
     if (page + 1) * size < len(ids):
@@ -135,7 +172,7 @@ def history_response(ids, load, list_id, title, next_title, page=0, size=20, tit
     }
 
 
-def combined_history_response(lists, load, read_item, title, next_title, page=0, size=20, titles=None):
+def combined_history_response(lists, load, read_item, title, next_title, page=0, size=20, titles=None, details=None, now=None):
     """Combine existing category lists without modifying their membership."""
     ranked = []
     seen = set()
@@ -161,9 +198,10 @@ def combined_history_response(lists, load, read_item, title, next_title, page=0,
     ranked.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
     page = max(0, int(page))
     menu = []
+    load = guarded_loader(load)
     for _, _, category, ident in ranked[page * size:(page + 1) * size]:
         row = history_response([ident], load, category, title, next_title,
-                               titles=(titles or {}).get(category, {}))
+                               titles=(titles or {}).get(category, {}), details=(details or {}).get(category, {}), now=now)
         menu.extend(row.get('menu') or [])
     if (page + 1) * size < len(ranked):
         menu.append({'type':'next', 'title':next_title, 'action':'last',
