@@ -50,3 +50,7 @@ msgstr "Připojení stále není dostupné. Zkuste to znovu později."
 msgctxt "#30010"
 msgid "Connection unavailable. Retrying the last episode list."
 msgstr "Připojení není dostupné. Zkouším znovu načíst seznam epizod."
+
+msgctxt "#30011"
+msgid "Last Seen"
+msgstr "Naposledy sledované"

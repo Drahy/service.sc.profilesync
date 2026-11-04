@@ -47,3 +47,7 @@ msgstr ""
 msgctxt "#30010"
 msgid "Connection unavailable. Retrying the last episode list."
 msgstr ""
+
+msgctxt "#30011"
+msgid "Last Seen"
+msgstr ""

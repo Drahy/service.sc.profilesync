@@ -66,7 +66,7 @@ def transform(source):
             return
 
 ''', 1)
-    source = source.replace(home, '''            _history = SCItem({SC.ITEM_TYPE:'action', SC.ITEM_TITLE:'[B]Last Seen[/B]',
+    source = source.replace(home, '''            _history = SCItem({SC.ITEM_TYPE:'action', SC.ITEM_TITLE:'[B]%s[/B]' % __import__('xbmcaddon').Addon('service.sc.profilesync').getLocalizedString(30011),
                                SC.ITEM_ACTION:SC.ACTION_LAST, SC.ITEM_ID:'last-all'})
             if _history.visible:
                 _history.li().setProperty('SpecialSort', GUI.TOP)
