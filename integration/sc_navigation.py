@@ -404,11 +404,11 @@ class NavigationRecovery:
                     self._finish_restore()
                     return
                 if self.retry_count >= len(self.RETRY_DELAYS):
-                    xbmcgui.Dialog().notification('Stream Cinema', 'Connection is still unavailable. Please try again later.')
+                    xbmcgui.Dialog().notification('Stream Cinema', __import__('xbmcaddon').Addon('service.sc.profilesync').getLocalizedString(30009))
                     self._finish_restore()
                     return
                 if self.retry_count == 0:
-                    xbmcgui.Dialog().notification('Stream Cinema', 'Connection unavailable. Retrying the last episode list.')
+                    xbmcgui.Dialog().notification('Stream Cinema', __import__('xbmcaddon').Addon('service.sc.profilesync').getLocalizedString(30010))
                 self.retry_at = now + self.RETRY_DELAYS[self.retry_count]
                 self.retry_count += 1
             if self.retry_at is not None and now >= self.retry_at:

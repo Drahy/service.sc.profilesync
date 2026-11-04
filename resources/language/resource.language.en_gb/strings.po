@@ -1,6 +1,6 @@
+#
 msgid ""
-msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
 msgctxt "#30000"
 msgid "Private profile synchronization"
@@ -27,6 +27,23 @@ msgid "Synchronize now"
 msgstr ""
 
 msgctxt "#30006"
-msgid "Uses the existing Stream Cinema Kra account. Hardware and account settings stay local."
+msgid ""
+"Uses the existing Stream Cinema Kra account. Hardware and account settings "
+"stay local."
 msgstr ""
 
+msgctxt "#30007"
+msgid "Up Next settings"
+msgstr ""
+
+msgctxt "#30008"
+msgid "Catalogue unavailable; Webshare remains available"
+msgstr ""
+
+msgctxt "#30009"
+msgid "Connection is still unavailable. Please try again later."
+msgstr ""
+
+msgctxt "#30010"
+msgid "Connection unavailable. Retrying the last episode list."
+msgstr ""

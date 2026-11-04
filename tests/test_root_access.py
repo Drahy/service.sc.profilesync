@@ -41,8 +41,12 @@ class Item:
 
 
 @pytest.mark.parametrize('failure', [True, False])
-def test_root_keeps_local_actions_when_catalogue_is_unavailable(failure):
+def test_root_keeps_local_actions_when_catalogue_is_unavailable(failure, monkeypatch):
     import traceback
+    import sys
+    monkeypatch.setitem(sys.modules, 'xbmcaddon', SimpleNamespace(Addon=lambda _: SimpleNamespace(
+        getLocalizedString=lambda key: {30006: 'Search Webshare', 30007: 'Up Next settings',
+                                         30008: 'Catalogue unavailable; Webshare remains available'}[key])))
     notifications = []
     sc = SimpleNamespace(ITEM_TYPE='type', ITEM_TITLE='title', ITEM_ACTION='action', ITEM_URL='url',
                          ACTION_CMD='cmd', ITEM_WIDGET='widget')

@@ -1,6 +1,6 @@
+#
 msgid ""
-msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
 msgctxt "#30000"
 msgid "Private profile synchronization"
@@ -20,13 +20,33 @@ msgstr "Synchronizace přes cloud (sekundy)"
 
 msgctxt "#30004"
 msgid "Hide subtitles with Czech audio; otherwise prefer Czech, then English"
-msgstr "S českým zvukem skrýt titulky; jinak upřednostnit češtinu a poté angličtinu"
+msgstr ""
+"S českým zvukem skrýt titulky; jinak upřednostnit češtinu a poté angličtinu"
 
 msgctxt "#30005"
 msgid "Synchronize now"
 msgstr "Synchronizovat nyní"
 
 msgctxt "#30006"
-msgid "Uses the existing Stream Cinema Kra account. Hardware and account settings stay local."
-msgstr "Používá stávající účet Stream Cinema na Kra. Nastavení zařízení a účtů zůstává místní."
+msgid ""
+"Uses the existing Stream Cinema Kra account. Hardware and account settings "
+"stay local."
+msgstr ""
+"Používá stávající účet Stream Cinema na Kra. Nastavení zařízení a účtů "
+"zůstává místní."
 
+msgctxt "#30007"
+msgid "Up Next settings"
+msgstr "Nastavení Up Next"
+
+msgctxt "#30008"
+msgid "Catalogue unavailable; Webshare remains available"
+msgstr "Katalog není dostupný; Webshare lze stále používat"
+
+msgctxt "#30009"
+msgid "Connection is still unavailable. Please try again later."
+msgstr "Připojení stále není dostupné. Zkuste to znovu později."
+
+msgctxt "#30010"
+msgid "Connection unavailable. Retrying the last episode list."
+msgstr "Připojení není dostupné. Zkouším znovu načíst seznam epizod."

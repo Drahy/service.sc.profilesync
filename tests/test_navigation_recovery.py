@@ -108,6 +108,10 @@ def environment(tmp_path, monkeypatch):
     logger.debug = lambda *args: None
     for name, value in [
         ("xbmc", xbmc),
+        ("xbmcaddon", SimpleNamespace(Addon=lambda _: SimpleNamespace(getLocalizedString=lambda key: {
+            30009: "Connection is still unavailable. Please try again later.",
+            30010: "Connection unavailable. Retrying the last episode list.",
+        }[key]))),
         ("xbmcgui", gui),
         ("xbmcvfs", vfs),
         ("resources.lib.constants", constants),
