@@ -1,0 +1,290 @@
+--- a/resources/lib/monitor.py
++++ b/resources/lib/monitor.py
+@@ -3,11 +3,12 @@
+ 
+ from copy import deepcopy
+ from traceback import format_exc
+-from xbmc import Monitor
++from xbmc import Monitor, getCondVisibility
+ from api import Api
+ from playbackmanager import PlaybackManager
+ from player import UpNextPlayer
+ from skip import Skipper
++import popup_recovery
+ from utils import clear_property, decode_json, get_property, get_setting_bool, get_setting_int, log as ulog, reload_settings
+ 
+ 
+@@ -32,6 +33,7 @@
+         self._wake_retries = 0
+         self._playback_state = None
+         self._waiting_for = None
++        self._recovering_popup = True
+ 
+     def log(self, msg, level=1):
+         """Log wrapper"""
+@@ -47,6 +49,7 @@
+                 # Abort was requested while waiting. We should exit
+                 break
+ 
++            self.restore_popup_after_restart()
+             self.restore_after_wake()
+             self.playback_manager.check_previous_watched()
+             self.playback_manager.resume_next_episode()
+@@ -160,6 +163,29 @@
+ 
+         self.log('Service stopped', 0)
+ 
++    def restore_popup_after_restart(self):
++        """Recover only a still-playing file whose popup was open when the service stopped."""
++        if not getattr(self, '_recovering_popup', False):
++            return
++        saved = popup_recovery.read()
++        if saved is None:
++            self._recovering_popup = False
++            return
++        if self.api.has_addon_data():
++            self._recovering_popup = False
++            return
++        try:
++            filename = self.player.getPlayingFile()
++            if not filename or self.player.getTotalTime() <= 0:
++                return
++        except RuntimeError:
++            return
++        self._recovering_popup = False
++        if popup_recovery.restore(saved, filename, self.api, self.player, getCondVisibility('Player.Paused')):
++            self.log('Restored open popup tracking after service restart', 2)
++        else:
++            popup_recovery.clear()
++
+     def stale_timing(self, current_file, total_time, play_time):
+         """Whether Kodi still reports the previous file's position and duration for a new file.
+ 
+@@ -264,12 +290,14 @@
+             return
+         if method == 'System.OnWake':
+             self._wake_retries = 30 if self._sleep_state else 0
++            popup_recovery.request_wake()
+             return
+         if method == 'Player.OnStop':
+             self._waiting_for = None
+             self.skipper.reset()
+             if not self._sleep_state:
+                 self._playback_state = None
++                popup_recovery.clear()
+             return
+         if not method.endswith('upnext_data'):  # Method looks like Other.upnext_data
+             return
+@@ -278,6 +306,9 @@
+         if decoded_data is None:
+             self.log('Received data from sender %s is not JSON: %s' % (sender, data), 2)
+             return
++
++        popup_recovery.clear()
++        self._recovering_popup = False
+ 
+         self.clear_sleep_state()
+         self._playback_state = None
+--- a/resources/lib/playbackmanager.py
++++ b/resources/lib/playbackmanager.py
+@@ -3,12 +3,13 @@
+ 
+ from math import ceil
+ from time import monotonic
+-from xbmc import sleep
++from xbmc import sleep, getCondVisibility
+ from api import Api, credits_autoplay_deadline, get_watched_state, mark_watched, playing_episode_id
+ from demo import DemoOverlay
+ from player import UpNextPlayer
+ from playitem import PlayItem
+ from state import State
++import popup_recovery
+ from stillwatching import StillWatching
+ from upnext import UpNext
+ from utils import (addon_path, calculate_progress_steps, clear_property, event, get_int, get_setting_bool, get_setting_int,
+@@ -207,6 +208,8 @@
+         showing_next_up_page = False
+         showing_still_watching_page = False
+         self._watch_limit_check_at = 0
++        popup_recovery.remember(playing_file, self.api, self.state)
++        recovery_update = monotonic() + 5
+         if not self.still_watching_due(played_in_a_row_number):
+             self.log('showing next up page as played in a row is %s' % self.state.played_in_a_row, 2)
+             next_up_page.set_credits_countdown(int(ceil(credits_duration)) if credits_deadline is not None else None)
+@@ -235,6 +238,16 @@
+                 break
+             play_time, total_time = position
+             self.state.watch_timer.observe(playing_file, play_time, self.state.pause)
++            if (showing_next_up_page and popup_recovery.wake_requested()
++                    and not getCondVisibility('Window.IsVisible(videoosd)')):
++                dialog_id = next_up_page.playback_dialog_id
++                if dialog_id:
++                    if not getCondVisibility('Window.IsVisible(%d)' % dialog_id):
++                        next_up_page.show()
++                    popup_recovery.wake_handled()
++            if monotonic() >= recovery_update:
++                popup_recovery.remember(playing_file, self.api, self.state, refresh=True)
++                recovery_update = monotonic() + 5
+ 
+             remaining = total_time - play_time
+             showing_next_up_page, showing_still_watching_page, credits_deadline = self.check_late_watch_limit(
+--- a/resources/lib/popup.py
++++ b/resources/lib/popup.py
+@@ -7,6 +7,7 @@
+ from platform import machine
+ from xbmcgui import WindowXMLDialog
+ from utils import get_global_setting, localize_date, localize_time
++import popup_recovery
+ 
+ ACTION_PLAYER_STOP = 13
+ ACTION_NAV_BACK = 92
+@@ -134,17 +135,21 @@
+ 
+     def onClick(self, controlId):  # pylint: disable=invalid-name
+         if controlId == 3012:  # Watch now / Still watching
++            popup_recovery.clear()
+             self.confirm()
+             self.close()
+         elif controlId == 3013:  # Close / Stop
++            popup_recovery.clear()
+             self.set_cancel(True)
+             # The playback manager owns Stop after the dialog has closed.
+             self.close()
+ 
+     def onAction(self, action):  # pylint: disable=invalid-name
+         if action == ACTION_PLAYER_STOP:
++            popup_recovery.clear()
+             self.close()
+         elif action == ACTION_NAV_BACK:
++            popup_recovery.clear()
+             self.dismissed = True
+             self.set_cancel(True)
+             self.close()
+--- a/resources/lib/upnext.py
++++ b/resources/lib/upnext.py
+@@ -6,6 +6,7 @@
+ from xbmcgui import ControlButton, getCurrentWindowDialogId
+ from popup import Popup
+ from utils import get_setting_bool, localize
++import popup_recovery
+ 
+ ACTION_SHOW_OSD = 24
+ ACTION_MOVE_UP = 3
+@@ -101,6 +102,7 @@
+         return self.watchnow
+ 
+     def set_auto_advance(self):
++        popup_recovery.clear()
+         self.auto_advance = True
+ 
+     def is_auto_advance(self):
+--- /dev/null
++++ b/resources/lib/popup_recovery.py
+@@ -0,0 +1,107 @@
++"""Keep an active add-on popup in Kodi's in-memory window across service restarts."""
++import hashlib
++import json
++import threading
++from datetime import date
++from utils import clear_property, get_property, set_property
++
++KEY = 'service.upnext.recovery.v1'
++WAKE_KEY = 'service.upnext.recovery.wake'
++_lock = threading.RLock()
++
++
++def file_key(filename):
++    return hashlib.sha256(filename.encode('utf-8')).hexdigest()
++
++
++def clear():
++    with _lock:
++        try:
++            clear_property(KEY)
++            clear_property(WAKE_KEY)
++        except RuntimeError:
++            pass
++
++
++def request_wake():
++    with _lock:
++        try:
++            if get_property(KEY):
++                set_property(WAKE_KEY, 'true')
++        except RuntimeError:
++            pass
++
++
++def wake_requested():
++    try:
++        return get_property(WAKE_KEY) == 'true' and bool(get_property(KEY))
++    except RuntimeError:
++        return False
++
++
++def wake_handled():
++    try:
++        clear_property(WAKE_KEY)
++    except RuntimeError:
++        pass
++
++
++def remember(filename, api, state, *, refresh=False):
++    """Only recover add-on data without a queued playlist item."""
++    with _lock:
++        if refresh:
++            try:
++                if not get_property(KEY):
++                    return
++            except RuntimeError:
++                return
++        if not filename or not isinstance(api.data, dict) or not api.data.get('next_episode') or state.queued:
++            clear()
++            return
++        timer = state.watch_timer
++        snapshot = {
++            'v': 1, 'file': file_key(filename), 'data': api.data, 'encoding': api.encoding,
++            'count': state.played_in_a_row, 'show': state.current_tv_show_id,
++            'elapsed': timer.elapsed,
++            'pending': timer.bedtime_pending.isoformat() if timer.bedtime_pending else None,
++            'ack': timer.bedtime_acknowledged.isoformat() if timer.bedtime_acknowledged else None,
++        }
++        try:
++            set_property(KEY, json.dumps(snapshot, separators=(',', ':')))
++        except (TypeError, ValueError, RuntimeError):
++            clear()
++
++
++def read():
++    try:
++        value = json.loads(get_property(KEY))
++        if (not isinstance(value, dict) or value.get('v') != 1 or not isinstance(value.get('file'), str)
++                or not isinstance(value.get('data'), dict) or not value['data'].get('next_episode')):
++            return None
++        return value
++    except (TypeError, ValueError, RuntimeError):
++        return None
++
++
++def restore(snapshot, filename, api, player, paused):
++    if not filename or file_key(filename) != snapshot['file']:
++        return False
++    try:
++        elapsed = max(0, float(snapshot.get('elapsed', 0)))
++        pending = date.fromisoformat(snapshot['pending']) if snapshot.get('pending') else None
++        acknowledged = date.fromisoformat(snapshot['ack']) if snapshot.get('ack') else None
++        count = max(1, int(snapshot.get('count', 1)))
++    except (ValueError, TypeError, OverflowError):
++        return False
++    state = player.state
++    api.addon_data_received(snapshot['data'], encoding=snapshot.get('encoding') or 'base64')
++    state.played_in_a_row = count
++    state.current_tv_show_id = snapshot.get('show')
++    state.watch_timer.elapsed = elapsed
++    state.watch_timer.bedtime_pending = pending
++    state.watch_timer.bedtime_acknowledged = acknowledged
++    state.watch_timer.suspend()
++    state.pause = bool(paused)
++    player.set_last_file(None)
++    player.enable_tracking()
++    return True

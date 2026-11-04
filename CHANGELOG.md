@@ -3,6 +3,7 @@
 ## Unreleased — Stream Cinema integration
 
 - **Open Up Next settings from Stream Cinema:** Add shortcuts on the home screen and in Stream Cinema playback settings when Up Next is installed; retain the home shortcut when the catalogue is unavailable.
+- **Restore an interrupted Up Next prompt:** Remember an open Stream Cinema next-episode prompt in Kodi's memory and restore it after a service restart or wake when the same file is still playing. Keep dismissed prompts closed and do not restore queued playlist items. Install the companion Up Next patch separately.
 - **Unify Last Seen on the home screen:** Show the locally synchronized history across categories in one list and open the synchronized series history from the existing Last Watched entry. Preserve each item's category, saved position, removal behavior and episode selection. Reuse previously resolved metadata without automatic expiry, stop repeated requests after a service-wide failure, and pause local history lookups after an HTTP 429 response. Hide unnamed unavailable entries without removing their saved history.
 - **Open Webshare during catalogue outages:** Keep a direct Webshare entry on the Stream Cinema home screen even when its catalogue cannot be reached.
 - **Protect history when local storage is unavailable:** Suspend profile capture until Stream Cinema's database is available instead of treating a missing database as deletion of every saved item.

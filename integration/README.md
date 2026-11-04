@@ -58,6 +58,21 @@ settings, account credentials and viewing databases are not part of code backups
 
 The shared Up Next preferences retain compact mode (`simpleMode=0`), allow Back to hide the popup while playback continues (`stopAfterClose=false`), and disable early credits autoplay (`autoPlayCreditsTime=0`). Manual selection of the next episode remains available. Per-addon update policies stay local to each device.
 
+## Restore an interrupted Up Next prompt
+
+Apply `upnext-popup-recovery.patch` to the official Up Next 1.3.5 addon root.
+For TV's already patched 1.3.5 build, apply `upnext-popup-recovery-tv.patch`
+instead, retaining its arrow-seeking changes. The patch
+keeps a short-lived snapshot in Kodi's in-memory home-window properties while
+an addon-supplied prompt is open. It recovers tracking after the Up Next service
+restarts only if the same file is still playing and restores a hidden prompt on
+wake when its dialog remains active. Back, Stop, Close, Watch Now and automatic
+advance clear the snapshot. The existing bedtime state is retained. Playlist
+items queued by Up Next are deliberately excluded to avoid duplicating them.
+The snapshot does not survive a full Kodi exit; playback is never started by
+this recovery. A changed stream URL is treated as a different file. Updates
+can overwrite this local patch and must be reviewed before it is reapplied.
+
 ## Playback controls alongside Up Next
 
 Apply `upnext-playback-controls.patch` to the compatible official Up Next 1.3.0 addon root after checking it with `git apply --check --ignore-space-change`. Enable **Use OK/Select for playback controls** under Up Next's Interface settings. The change is proposed upstream in [PR #350](https://github.com/im85288/service.upnext/pull/350).
