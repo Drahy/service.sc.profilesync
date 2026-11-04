@@ -31,6 +31,12 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
   episode last-played timestamp to ten seconds of actual playback; pauses,
   buffering, failed starts and seek jumps do not count. Completed-episode
   pointers, bookmarks and play counts remain independent.
+- Apply `patch_progress_checkpoint.transform` to the compatible SC player and
+  copy `sc_progress_checkpoint.py` to `resources/lib/common/progress_checkpoint.py`.
+  After ten seconds of actual playback, unfinished positions are saved locally
+  every 15 seconds, on pause and after a seek. Saving does not call Stream Cinema.
+  Completion closes the checkpoint before clearing the bookmark; profile sync
+  shares saved positions using its existing schedule.
 - Apply `menu-performance.patch` from the SC addon root to prepare plugin items without GUI locks.
 
 The bridges perform local cache invalidation, safe SQLite merging and exact episode selection. They contain no cloud requests or playback commands. The profile service performs cloud operations independently and defers imports during playback.
