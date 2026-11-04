@@ -1,0 +1,32 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgctxt "#30000"
+msgid "Private profile synchronization"
+msgstr "Soukromá synchronizace profilu"
+
+msgctxt "#30001"
+msgid "Synchronize preferences and viewing history"
+msgstr "Synchronizovat nastavení a historii sledování"
+
+msgctxt "#30002"
+msgid "Local change check (seconds)"
+msgstr "Kontrola místních změn (sekundy)"
+
+msgctxt "#30003"
+msgid "Cloud synchronization (seconds)"
+msgstr "Synchronizace přes cloud (sekundy)"
+
+msgctxt "#30004"
+msgid "Hide subtitles with Czech audio; otherwise prefer Czech, then English"
+msgstr "S českým zvukem skrýt titulky; jinak upřednostnit češtinu a poté angličtinu"
+
+msgctxt "#30005"
+msgid "Synchronize now"
+msgstr "Synchronizovat nyní"
+
+msgctxt "#30006"
+msgid "Uses the existing Stream Cinema Kra account. Hardware and account settings stay local."
+msgstr "Používá stávající účet Stream Cinema na Kra. Nastavení zařízení a účtů zůstává místní."
+

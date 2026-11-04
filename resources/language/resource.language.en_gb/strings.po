@@ -1,0 +1,32 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgctxt "#30000"
+msgid "Private profile synchronization"
+msgstr ""
+
+msgctxt "#30001"
+msgid "Synchronize preferences and viewing history"
+msgstr ""
+
+msgctxt "#30002"
+msgid "Local change check (seconds)"
+msgstr ""
+
+msgctxt "#30003"
+msgid "Cloud synchronization (seconds)"
+msgstr ""
+
+msgctxt "#30004"
+msgid "Hide subtitles with Czech audio; otherwise prefer Czech, then English"
+msgstr ""
+
+msgctxt "#30005"
+msgid "Synchronize now"
+msgstr ""
+
+msgctxt "#30006"
+msgid "Uses the existing Stream Cinema Kra account. Hardware and account settings stay local."
+msgstr ""
+
