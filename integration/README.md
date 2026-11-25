@@ -6,6 +6,13 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
 - Copy `resources/lib/sc_bridge.py` from this repository to SC's `resources/lib/common/profile_sync.py`.
 - Apply `last-seen-browse.patch` from the SC addon root with `git apply`.
 - Copy `resources/lib/sc_browse.py` to SC's `resources/lib/common/resume_browse.py`.
+- For the season reset action, install SC Profile Sync 0.1.6 or later on the
+  synchronized devices. Copy `resources/lib/season_reset.py` into Stream Cinema as
+  `resources/lib/common/season_reset_data.py` and `integration/sc_season_reset.py`
+  as `resources/lib/common/season_reset.py`. Apply `patch_season_reset.item` and
+  `.streamcinema` to the matching files. The season context menu confirms and
+  clears the selected season and later seasons. Earlier seasons and Last Seen
+  membership remain available. Stop playback before choosing the action.
 - Apply `patch_upnext_settings.settings` to the reviewed Stream Cinema settings.
   The shortcut opens Up Next's own settings and is hidden when it is unavailable.
 - Apply `patch_root_access.transform` to `resources/lib/streamcinema.py` after

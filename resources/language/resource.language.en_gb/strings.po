@@ -51,3 +51,23 @@ msgstr ""
 msgctxt "#30011"
 msgid "Last Seen"
 msgstr ""
+
+msgctxt "#30012"
+msgid "Start over from this season"
+msgstr ""
+
+msgctxt "#30013"
+msgid "Clear watched marks and resume positions for this show from Season {} onwards on your synchronized devices? Earlier seasons will be kept."
+msgstr ""
+
+msgctxt "#30014"
+msgid "Stop playback before resetting viewing history."
+msgstr ""
+
+msgctxt "#30015"
+msgid "Reset history"
+msgstr ""
+
+msgctxt "#30016"
+msgid "Viewing history was not changed. Please try again."
+msgstr ""

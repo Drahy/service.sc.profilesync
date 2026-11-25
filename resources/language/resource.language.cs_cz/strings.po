@@ -54,3 +54,23 @@ msgstr "Připojení není dostupné. Zkouším znovu načíst seznam epizod."
 msgctxt "#30011"
 msgid "Last Seen"
 msgstr "Naposledy sledované"
+
+msgctxt "#30012"
+msgid "Start over from this season"
+msgstr "Začít znovu od této řady"
+
+msgctxt "#30013"
+msgid "Clear watched marks and resume positions for this show from Season {} onwards on your synchronized devices? Earlier seasons will be kept."
+msgstr "Vymazat označení zhlédnutých dílů a rozkoukané pozice u tohoto seriálu od {}. řady dál na synchronizovaných zařízeních? Historie předchozích řad zůstane zachována."
+
+msgctxt "#30014"
+msgid "Stop playback before resetting viewing history."
+msgstr "Před vymazáním historie sledování zastav přehrávání."
+
+msgctxt "#30015"
+msgid "Reset history"
+msgstr "Vymazat historii"
+
+msgctxt "#30016"
+msgid "Viewing history was not changed. Please try again."
+msgstr "Historie sledování se nezměnila. Zkus to znovu."

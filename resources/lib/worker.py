@@ -4,6 +4,7 @@ import time
 from .engine import decode, encode
 from .kra import NAME, PREFIX, KraError
 from .local import write
+from .season_reset import MARKER
 
 
 class Worker:
@@ -35,6 +36,8 @@ class Worker:
     def sync(self):
         self.capture()
         files = self.backend.list()
+        pending = []
+        reset_markers = {}
         for file in sorted(files, key=lambda f: f["name"], reverse=True):
             self.check_running()
             if file["ident"] in self.downloaded:
@@ -51,10 +54,21 @@ class Worker:
                 old = self.engine.records.get(key)
                 if key.startswith("setting|") and old and old["v"][0] == 0 and old["v"][2] == self.engine.device:
                     self.engine.records.pop(key)
-            self.engine.merge(data["records"])
+            pending.append(data["records"])
+            for key, record in data["records"].items():
+                if MARKER.fullmatch(key) and (key not in reset_markers or record["v"] > reset_markers[key]["v"]):
+                    reset_markers[key] = record
             self.downloaded.add(file["ident"])
+        # Learn reset boundaries before choosing between competing episode records.
+        # An offline device may have captured an older watch with a newer version.
+        if reset_markers:
+            self.engine.merge(reset_markers)
+        for records in pending:
+            self.engine.merge(records)
         # Local viewing may have changed while a transfer was in flight.
         latest = self.capture()
+        if self.engine.apply_season_resets():
+            self.save()
         self.check_running()
         applied = self.adapter.apply(self.engine.records, latest, playing=self.playing())
         if applied:

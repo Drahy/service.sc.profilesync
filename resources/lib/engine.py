@@ -5,6 +5,8 @@ import hashlib
 import json
 import time
 from .policy import shared_setting
+from .profile import timestamp
+from .season_reset import MARKER, affected_season
 
 SCHEMA = 1
 MAX_BYTES = 4 * 1024 * 1024
@@ -50,6 +52,8 @@ def valid_record(key, record):
     ):
         return False
     value = record["value"]
+    if MARKER.fullmatch(key):
+        return value is None
     if value is None:
         return True
     kind = key.split("|")[0]
@@ -112,6 +116,44 @@ def decode(raw):
     return data
 
 
+def reset_ranges(records):
+    ranges = {}
+    for key, version in records.items():
+        match = MARKER.fullmatch(key)
+        if match:
+            ranges.setdefault(match[1], []).append((int(match[2]), version))
+    return ranges
+
+
+def reset_boundary(key, value, ranges):
+    kind, show, *episode = key.split("|")
+    if show not in ranges or value is None:
+        return None
+    if kind == "history" and len(episode) == 2 and all(part.isdigit() for part in episode):
+        season = int(episode[0])
+    else:
+        season = affected_season(kind, value)
+    if season is None:
+        return None
+    return max((version for start, version in ranges[show] if season >= start), default=None)
+
+
+def expire_record(key, record, ranges):
+    if not ranges:
+        return record
+    value = record["value"]
+    boundary = reset_boundary(key, value, ranges)
+    if not boundary:
+        return record
+    played = 0
+    if key.startswith("history|"):
+        played = timestamp(value["played_at"])
+    elif key.startswith("next|"):
+        played = timestamp(value.get("t"))
+    older = played < boundary[0] if played else record["v"] <= boundary
+    return {"v": boundary, "value": None} if older else record
+
+
 class Engine:
     def __init__(self, device, saved=None, now=None):
         self.device = device
@@ -134,6 +176,11 @@ class Engine:
         initial = not self.initialized
         clocks = bootstrap_clocks or {}
         version = self.version() if not initial else None
+        new_ranges = reset_ranges({
+            key: [value, 0, self.device] for key, value in snapshot.items()
+            if type(value) is int and 0 < value < 10**15
+            and value != self.observed.get(key) and MARKER.fullmatch(key)
+        })
         changed = 0
         for key in sorted(set(snapshot) | set(self.observed)):
             value = snapshot.get(key)
@@ -141,6 +188,15 @@ class Engine:
             if key.startswith("setting|") and key not in snapshot:
                 continue  # An unavailable addon/settings file is not an explicit preference reset.
             if not valid_key(key) or (key in self.observed and value == old):
+                continue
+            if MARKER.fullmatch(key):
+                # The reserved episode "-" is understood as a no-op deletion by
+                # older readers. The timestamp lives in the existing version.
+                saved = self.records.get(key)
+                if type(value) is int and 0 < value < 10**15 and (not saved or value > saved["v"][0]):
+                    self.records[key] = {"v": [value, 0, self.device], "value": None}
+                    self.clock = max(self.clock, value)
+                    changed += 1
                 continue
             if (
                 not initial
@@ -159,6 +215,10 @@ class Engine:
                 rank = 0
             new_preference = key.startswith("setting|") and key not in self.observed and key not in self.records
             stamp = [int(clocks.get(key, 0)), -rank, self.device] if initial or new_preference else version
+            if value is None and new_ranges:
+                boundary = reset_boundary(key, old, new_ranges)
+                if boundary:
+                    stamp = boundary
             record = {"v": stamp, "value": copy.deepcopy(record_value)}
             if not valid_record(key, record):
                 continue
@@ -172,14 +232,41 @@ class Engine:
     def merge(self, incoming):
         changed = 0
         for key, record in incoming.items():
-            if not valid_record(key, record):
+            if not isinstance(key, str) or not MARKER.fullmatch(key) or not valid_record(key, record):
                 continue
             old = self.records.get(key)
-            if old is None or tuple(record["v"]) > tuple(old["v"]):
+            if old is None or record["v"] > old["v"]:
                 self.records[key] = copy.deepcopy(record)
                 self.clock = max(self.clock, record["v"][0])
-                self.counter = max(self.counter, record["v"][1])
                 changed += 1
+        ranges = reset_ranges({key: record["v"] for key, record in self.records.items() if MARKER.fullmatch(key)})
+        changed += self.apply_season_resets(ranges)
+        for key, record in incoming.items():
+            if not valid_record(key, record) or MARKER.fullmatch(key):
+                continue
+            effective = expire_record(key, record, ranges)
+            old = self.records.get(key)
+            if old is None or effective["v"] > old["v"]:
+                self.records[key] = copy.deepcopy(effective)
+                self.clock = max(self.clock, effective["v"][0])
+                self.counter = max(self.counter, effective["v"][1])
+                self.dirty = self.dirty or effective is not record
+                changed += 1
+        return changed
+
+    def apply_season_resets(self, ranges=None):
+        if ranges is None:
+            ranges = reset_ranges({key: record["v"] for key, record in self.records.items() if MARKER.fullmatch(key)})
+        if not ranges:
+            return 0
+
+        changed = 0
+        for key, record in self.records.items():
+            effective = expire_record(key, record, ranges)
+            if effective is not record:
+                self.records[key] = effective
+                changed += 1
+        self.dirty = self.dirty or bool(changed)
         return changed
 
     def after_apply(self, snapshot):

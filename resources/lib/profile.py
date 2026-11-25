@@ -7,6 +7,7 @@ import re
 import sqlite3
 
 from .policy import shared_setting
+from .season_reset import MARKER, NAMESPACE
 
 ITEM = re.compile(r"^SCKODIItem-(\d+)$")
 FIELD = re.compile(r"^(watched|play_count|last_played)(?::(\d+):(\d+))?$")
@@ -38,6 +39,9 @@ def read_rows(path):
 
 def export(rows, preferences=None):
     result, clocks, visits = {}, {}, {}
+    for key, moment in rows.get(NAMESPACE, {}).items():
+        if MARKER.fullmatch(key) and type(moment) is int and 0 < moment < 10**15:
+            result[key] = moment
     watched = set(str(x) for x in rows.get("all_watched", {}).get("list", []))
     groups = {}
     for key in watched:
@@ -119,7 +123,7 @@ def apply_rows(rows, records, eligible=None):
     watched = set(str(x) for x in rows.get("all_watched", {}).get("list", []))
     lists = {}
     for key, record in records.items():
-        if eligible is not None and key not in eligible:
+        if MARKER.fullmatch(key) or (eligible is not None and key not in eligible):
             continue
         parts, value = key.split("|"), record["value"]
         kind = parts[0]
@@ -155,7 +159,8 @@ def apply_rows(rows, records, eligible=None):
                 data.pop(field, None)
             else:
                 data[field] = copy.deepcopy(value)
-    if any(key.startswith("history|") and (eligible is None or key in eligible) for key in records):
+    if any(key.startswith("history|") and not MARKER.fullmatch(key)
+           and (eligible is None or key in eligible) for key in records):
         rows.setdefault("all_watched", {})["list"] = sorted(watched)
     for namespace, entries in lists.items():
         ranked = sorted(entries, key=lambda item: tuple(item[1]["v"]), reverse=True)

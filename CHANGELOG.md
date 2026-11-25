@@ -13,6 +13,10 @@
 - **Start sequential episodes from the beginning by default:** For episodes requested by Up Next, offer a saved resume time for five seconds before starting from the beginning, with full-width choices arranged vertically. Suppress duplicate requests for the same transition while preserving retries after cancellation or failure. Pause the deadline while navigating the choice and let Back, Stop or Cancel abandon playback. Preserve ordinary manual resume behavior and saved positions. Install the companion Stream Cinema integration separately; the official Up Next package remains unchanged.
 - **Use playback controls alongside Up Next:** Provide the optional playback-controls patch for Up Next 1.3.0 together with the maintainer's upstream file-handoff timing fix. Let initial OK/Select open the native OSD, use Up to return from Next/Close to playback-control focus, and restore the popup after Kodi hides it while controls are open, including when a dedicated OSD action is used with the option disabled. Preserve Stop/Back behavior and pause-aware automatic advancement. Enable the new local option explicitly on each device; the released SC Profile Sync package remains unchanged.
 
+## 0.1.6 — 2026-11-25
+
+- **Start over from a selected season:** Clear watched marks and resume positions from the chosen season onwards while keeping earlier seasons. Confirm the range in Stream Cinema. The shared reset prevents older viewing records from resurfacing when devices reconnect and lets newly watched episodes count again. Install the matching Stream Cinema integration to add the action.
+
 ## 0.1.5 — 2026-10-21
 
 - **Reopen the last episode folder promptly after Exit:** The updated Stream Cinema integration restores the last local season and selected episode after a normal Kodi exit, including Exit through Home, without starting playback. Reuse merge snapshots and the Home window during profile reads, and prepare directory metadata without GUI locks. Keep active-context crash recovery and shared Last seen history separate; reapply the updated integration files to existing Stream Cinema installations.

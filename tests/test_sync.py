@@ -10,7 +10,7 @@ import pytest
 
 from resources.lib.adapter import Adapter
 from resources.lib.engine import Engine, decode, encode, valid_key
-from resources.lib.kra import KraError, NAME
+from resources.lib.kra import KraError, NAME, PREFIX
 from resources.lib.local import read
 from resources.lib.profile import apply_rows, export
 from resources.lib.worker import Worker
@@ -88,6 +88,31 @@ def replica(tmp_path, device, backend, rows=None, preferences=None, playing=None
     engine = Engine(device, now=lambda: 1792500000000)
     worker = Worker(engine, adapter, backend, tmp_path / (device + ".json"), playing)
     return worker, path, prefs
+
+
+def test_range_reset_sync_preserves_a_new_replay_and_removes_a_stale_offline_episode(tmp_path):
+    backend = Backend()
+    reset_at = 1792500000000
+    namespace = "SCKODIItem-42"
+    earlier, replayed, stale = ("history|42|4|1", "history|42|5|2", "history|42|37|1")
+    reset = "history|42|5|-"
+    offline, replay, resetter = "f" * 32, "b" * 32, "0" * 32
+    for device, data in (
+        (offline, {
+            replayed: record(history(count=8, played="2026-09-01T00:00:00Z"), reset_at + 9000, origin=offline),
+            stale: record(history(count=1, played="2026-09-01T00:00:00Z"), reset_at + 9000, origin=offline),
+            earlier: record(history(count=1, played="2026-09-01T00:00:00Z"), reset_at - 1, origin=offline),
+        }),
+        (replay, {replayed: record(history(count=1, played="2026-11-01T00:00:00Z"), reset_at + 3000, origin=replay)}),
+        (resetter, {reset: record(None, reset_at, 0, resetter)}),
+    ):
+        backend.upload(PREFIX + device + "-000000000001.json", encode(device, 1, data))
+    worker, _, _ = replica(tmp_path, DEVICE_A, backend, {namespace: {"play_count:37:1": 3}})
+    worker.sync()
+    snapshot, _ = worker.adapter.snapshot()
+    assert snapshot[earlier]["count"] == 1
+    assert snapshot[replayed]["count"] == 1
+    assert stale not in snapshot
 
 
 def test_interrupted_upload_keeps_reserved_generation_and_unsent_changes(tmp_path):
