@@ -19,6 +19,7 @@ from resources.lib.common import episode_return
 
 RESTORE_PARAMETER = 'navigation_restore'
 VIDEO_WINDOW = 10025
+FULLSCREEN_VIDEO = 12005
 RETRY_PROPERTY = 'SC.navigation.restore.transient'
 
 
@@ -111,6 +112,7 @@ class NavigationRecovery:
         self.webshare_origin = None
         self.webshare_fallback = None
         self.webshare_fallback_active = False
+        self.playback_origin = None
         self.force_entry = False
         self.wake_serial = getattr(monitor, 'navigation_wake', 0)
         self.sleeping = monitor.is_DPMS or monitor.is_screensaver
@@ -189,20 +191,73 @@ class NavigationRecovery:
                 pass
         return None, None
 
+    @staticmethod
+    def _episode_index(identifier, item):
+        count = (xbmc.getInfoLabel('Container(%s).NumAllItems' % identifier)
+                 or xbmc.getInfoLabel('Container(%s).NumItems' % identifier))
+        for index in range(int(count or '0') + 1):
+            uri = xbmc.getInfoLabel('Container(%s).ListItemAbsolute(%s).FileNameAndPath' % (identifier, index))
+            if item_key(uri) == item:
+                return index
+        return None
+
+    def _return_from_playback(self, folder, selected, checkpoint, window, identifier, control, playing):
+        origin = self.playback_origin
+        if not origin:
+            return False
+        original_folder, original_item, first_played = origin
+        target = checkpoint.get('item', '')
+        if (folder != original_folder or selected not in (original_item, first_played)
+                or target.rsplit('/', 2)[0] != first_played.rsplit('/', 2)[0]):
+            self.playback_origin = None
+            return False
+        if target == selected:
+            # The list can appear briefly while Kodi replaces one video with the next.
+            # Keep the origin until the selection moves or the user leaves the list.
+            return False
+        if xbmc.getCondVisibility('System.HasModalDialog'):
+            return True
+        if checkpoint['folder'] == folder:
+            index = self._episode_index(identifier, target)
+            if index is not None:
+                window.setFocusId(identifier)
+                control.selectItem(index)
+                self.playback_origin = None
+                return True
+        elif playing:
+            # Opening a different season can load the catalogue. Wait for Stop.
+            return True
+        else:
+            route = route_args(checkpoint['folder']).get('url', '')
+            episode = target.rsplit('/', 1)[-1]
+            focus = resume_browse.focus_request(route, episode)
+            if focus and focus['item'] == target:
+                self.playback_origin = None
+                uri = episode_return.folder_uri({'url': route, 'resume_episode': episode,
+                                                'navigation_restore': '1'})
+                xbmc.executebuiltin('Container.Update("%s",replace)' % uri)
+                return True
+        self.playback_origin = None
+        return False
+
     def capture(self):
         if self.monitor.is_DPMS or self.monitor.is_screensaver:
             return
         checkpoint = dict(self.state.get('checkpoint', {}))
         window_id = xbmcgui.getCurrentWindowId()
         home = xbmcgui.Window(10000)
+        playing = self.player.isPlayback()
         inside = window_id == VIDEO_WINDOW and safe_folder(xbmc.getInfoLabel('Container.FolderPath'))
         # Only the plugin invocation marks entry. During window activation Kodi
         # can still expose the previous season before the new root request runs.
-        if not inside and not (self.player.is_my_plugin and self.player.isPlayback()):
+        if not inside and not (self.player.is_my_plugin and playing):
             home.clearProperty(episode_return.INSIDE_PROPERTY)
         if window_id == VIDEO_WINDOW:
             folder = safe_folder(xbmc.getInfoLabel('Container.FolderPath'))
-            if folder and not xbmc.getCondVisibility('Container.IsUpdating'):
+            updating = xbmc.getCondVisibility('Container.IsUpdating')
+            if self.playback_origin and not updating and folder != self.playback_origin[0]:
+                self.playback_origin = None
+            if folder and not updating:
                 window = xbmcgui.Window(VIDEO_WINDOW)
                 identifier, control = self._list_control(window, checkpoint.get('control'))
                 if control is not None:
@@ -210,36 +265,45 @@ class NavigationRecovery:
                     position = xbmc.getInfoLabel('Container(%s).CurrentItem' % identifier)
                     key = item_key(xbmc.getInfoLabel('ListItem.FileNameAndPath'))
                     if key:
+                        if self._return_from_playback(folder, key, checkpoint, window, identifier, control, playing):
+                            return
                         self._update({'folder': folder, 'item': key, 'index': position,
                                       'control': identifier, 'active': True})
                         return
-        if self.player.is_my_plugin and self.player.isPlayback():
+        elif window_id != FULLSCREEN_VIDEO:
+            self.playback_origin = None
+        if self.player.is_my_plugin and playing:
             info = (self.player.item or {}).get('info', {})
             show, season, episode = self.player.my_id, info.get('season'), info.get('episode')
-            previous = re.fullmatch(r'/Play/(\d+)/(\d+)/(\d+)', checkpoint.get('item', ''))
+            previous = episode_return.EPISODE.fullmatch(checkpoint.get('item', ''))
             if previous and show is not None and season is not None and episode is not None:
                 old_show, old_season, _ = previous.groups()
                 if str(show) == old_show:
+                    played = '/Play/%s/%s/%s' % (show, season, episode)
+                    if (window_id == FULLSCREEN_VIDEO and not self.playback_origin
+                            and checkpoint.get('active') and str(season) == old_season
+                            and episode_return.EPISODE.fullmatch(played)):
+                        self.playback_origin = (checkpoint['folder'], checkpoint['item'], played)
                     if str(season) != old_season:
                         # Only infer a new season from the exact observed show/season route.
                         folder_parts = urlsplit(checkpoint['folder'])
                         values = parse_qsl(folder_parts.query)
-                        route = route_args(checkpoint['folder']).get('url', '')
+                        route = urlsplit(route_args(checkpoint['folder']).get('url', ''))
                         suffix = '/%s/%s' % (old_show, old_season)
-                        if route.endswith(suffix):
-                            route = route[:-len(old_season)] + str(season)
-                            values = [(key, route.encode('utf-8').hex() if key == 'url' else value)
+                        if route.path.endswith(suffix):
+                            updated_route = route._replace(path=route.path[:-len(old_season)] + str(season)).geturl()
+                            values = [(key, updated_route.encode('utf-8').hex() if key == 'url' else value)
                                       for key, value in values]
                             checkpoint['folder'] = urlunsplit((folder_parts.scheme, folder_parts.netloc,
                                                               folder_parts.path, urlencode(values), ''))
                         else:
                             return
-                    checkpoint['item'] = '/Play/%s/%s/%s' % (show, season, episode)
+                    checkpoint['item'] = played
             if checkpoint:
                 checkpoint['active'] = True
                 self._update(checkpoint)
             return
-        if window_id not in (VIDEO_WINDOW, 12005) or not safe_folder(xbmc.getInfoLabel('Container.FolderPath')):
+        if window_id not in (VIDEO_WINDOW, FULLSCREEN_VIDEO) or not safe_folder(xbmc.getInfoLabel('Container.FolderPath')):
             if checkpoint.get('active'):
                 checkpoint['active'] = False
                 self._update(checkpoint)

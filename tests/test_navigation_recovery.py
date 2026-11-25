@@ -369,6 +369,86 @@ def test_own_playback_tracks_episode_changes(environment):
     assert env.module.route_args(worker.state["checkpoint"]["folder"])["url"] == "/Catalogue/123/37"
 
 
+@pytest.mark.parametrize("still_playing", [False, True])
+def test_return_to_episode_list_after_automatic_playback(environment, still_playing):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    original_folder = env.context.folder
+    env.context.window, env.context.folder = 12005, ""
+    env.player.is_my_plugin = True
+    env.player.isPlayback = lambda: True
+    env.player.my_id = 123
+    env.player.item = {"info": {"season": 36}}
+    for episode in (8, 9, 10):
+        env.player.item["info"]["episode"] = episode
+        worker.capture()
+
+    env.context.window, env.context.folder = 10025, original_folder
+    env.context.items = ["..", uri("/Play/123/36/10"), uri("/Play/123/36/8")]
+    env.player.isPlayback = lambda: still_playing
+    worker.capture()
+    assert env.control.selected == 1
+    assert worker.state["checkpoint"]["item"] == "/Play/123/36/10"
+    assert not env.context.commands
+
+    env.control.selected = None
+    worker.capture()
+    assert env.control.selected is None
+
+
+@pytest.mark.parametrize("changed_folder", [False, True])
+def test_playback_return_respects_new_navigation(environment, changed_folder):
+    env = environment
+    worker = env.make()
+    worker.capture()
+    original_folder = env.context.folder
+    env.context.window, env.context.folder = 12005, ""
+    env.player.is_my_plugin = True
+    env.player.isPlayback = lambda: True
+    env.player.my_id = 123
+    env.player.item = {"info": {"season": 36, "episode": 10}}
+    worker.capture()
+    env.player.isPlayback = lambda: False
+
+    env.context.window = 10025
+    env.context.folder = uri("/FGet/123") if changed_folder else original_folder
+    env.context.key = uri("/Play/123/36/8" if changed_folder else "/Play/123/36/7")
+    env.context.items.append(uri("/Play/123/36/10"))
+    worker.capture()
+    assert env.control.selected is None
+    assert not env.context.commands
+
+
+def test_playback_return_replaces_an_old_season_without_autoplay(environment):
+    env = environment
+    worker = env.make()
+    original_folder = uri("/FGet/123/36")
+    env.context.folder = original_folder
+    worker.capture()
+    env.context.window, env.context.folder = 12005, ""
+    env.player.is_my_plugin = True
+    env.player.isPlayback = lambda: True
+    env.player.my_id = 123
+    env.player.item = {"info": {"season": 36, "episode": 8}}
+    worker.capture()
+    env.player.item["info"].update(season=37, episode=1)
+    worker.capture()
+
+    env.context.window, env.context.folder = 10025, original_folder
+    worker.capture()
+    assert not env.context.commands
+    env.player.isPlayback = lambda: False
+    worker.capture()
+    command, = env.context.commands
+    assert command.startswith('Container.Update("') and command.endswith('",replace)')
+    assert env.module.route_args(command.split('"')[1]) == {
+        "url": "/FGet/123/37", "resume_episode": "1", "navigation_restore": "1",
+    }
+    worker.capture()
+    assert len(env.context.commands) == 1
+
+
 def test_corrupt_state_does_not_prevent_addon_startup(environment):
     env = environment
     env.state_file.write_text("{broken")
