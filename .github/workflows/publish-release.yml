@@ -1,0 +1,132 @@
+name: Publish Kodi release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published version to verify, such as v0.1.7
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kodi-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Check the version tag
+        shell: bash
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a version tag such as v0.1.7." >&2
+            exit 1
+          fi
+
+      - name: Check out the tagged release
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify the Kodi feed and prepare release assets
+        shell: bash
+        run: |
+          git merge-base --is-ancestor HEAD origin/main
+          RELEASE_DIR="$RUNNER_TEMP/sc-profile-release"
+          mkdir -p "$RELEASE_DIR/assets"
+          python3 - "$TAG" "$RELEASE_DIR" <<'PY'
+          import hashlib
+          from pathlib import Path
+          import re
+          import sys
+          from xml.etree import ElementTree
+          from zipfile import ZipFile
+
+          tag, destination = sys.argv[1:]
+          destination = Path(destination)
+          version = tag[1:]
+          service = 'service.sc.profilesync'
+          repository = 'repository.drahy.scprofilesync'
+
+          def verified(path):
+              data = path.read_bytes()
+              digest = hashlib.sha256(data).hexdigest()
+              if path.with_suffix(path.suffix + '.sha256').read_text().strip() != digest:
+                  raise SystemExit(f'Checksum mismatch for {path}')
+              return data, digest
+
+          feed_bytes, _ = verified(Path('repo/addons.xml'))
+          feed = {item.get('id'): item.get('version') for item in ElementTree.fromstring(feed_bytes)}
+          if feed.get(service) != version:
+              raise SystemExit(f'Tag {tag} does not match the update feed')
+
+          for name, manifest in ((service, Path('addon.xml')),
+                                 (repository, Path(repository) / 'addon.xml')):
+              addon = ElementTree.parse(manifest).getroot()
+              if addon.get('id') != name or addon.get('version') != feed.get(name):
+                  raise SystemExit(f'Manifest and update feed disagree for {name}')
+              package = Path('repo') / name / f'{name}-{feed[name]}.zip'
+              data, digest = verified(package)
+              with ZipFile(package) as archive:
+                  if archive.testzip() or archive.read(f'{name}/addon.xml') != manifest.read_bytes():
+                      raise SystemExit(f'Invalid package or outdated manifest for {name}')
+              names = (package.name, f'{repository}.zip') if name == repository else (package.name,)
+              for filename in names:
+                  (destination / 'assets' / filename).write_bytes(data)
+                  (destination / 'assets' / (filename + '.sha256')).write_text(digest + '\n')
+
+          changelog = Path('CHANGELOG.md').read_text(encoding='utf-8')
+          section = re.search(rf'^## {re.escape(version)}(?:[ \t]+[^\n]*)?\n(.*?)(?=^## |\Z)',
+                              changelog, flags=re.MULTILINE | re.DOTALL)
+          if not section or not section[1].strip():
+              raise SystemExit(f'Missing changelog entry for {tag}')
+          (destination / 'notes.md').write_text(section[1].strip() + '\n', encoding='utf-8')
+          PY
+
+      - name: Verify or publish the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          RELEASE_DIR="$RUNNER_TEMP/sc-profile-release"
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft) || draft=
+          if [[ "$EVENT" == workflow_dispatch && "$draft" != false ]]; then
+            echo "Manual runs verify a published release." >&2
+            exit 1
+          fi
+          if [[ -z "$draft" ]]; then
+            gh release create "$TAG" --verify-tag --draft \
+              --title "SC Profile Sync ${TAG#v}" --notes-file "$RELEASE_DIR/notes.md"
+            draft=true
+          fi
+
+          published="$RELEASE_DIR/published"
+          mkdir -p "$published"
+          if [[ "$draft" == true ]]; then
+            existing=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          fi
+          for asset in "$RELEASE_DIR"/assets/*; do
+            name=${asset##*/}
+            if [[ "$draft" == true ]] && ! grep -Fxq -- "$name" <<< "$existing"; then
+              gh release upload "$TAG" "$asset"
+            fi
+            gh release download "$TAG" --pattern "$name" --dir "$published"
+            cmp "$asset" "$published/$name"
+          done
+
+          if [[ "$draft" == true ]]; then
+            gh release edit "$TAG" --draft=false --latest
+            test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = false
+          fi

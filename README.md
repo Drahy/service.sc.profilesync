@@ -69,6 +69,6 @@ Run `python tools/build_repository.py` to generate deterministic, allowlisted ad
 
 1. Update the addon version, User-Agent and [changelog](CHANGELOG.md), then run the tests and build script.
 2. Commit the source and generated feed together. Preserve existing versioned packages.
-3. Tag the commit `v<version>` and publish its service ZIP, repository ZIP, stable `repository.drahy.scprofilesync.zip` alias and checksums as a GitHub release. Never replace a published version with different contents.
+3. Push the release commit to `main`, then create and push its `v<version>` tag. The Publish Kodi release workflow validates the feed and publishes the service ZIP, repository ZIP, stable `repository.drahy.scprofilesync.zip` alias and SHA-256 checksums. Release notes come from that version's changelog entry. The workflow verifies previously published assets without replacing them.
 
 The repository uses HTTPS, a SHA-256 feed checksum and versioned package URLs following [Kodi's repository format](https://kodi.wiki/view/Add-on_repositories). Never include private backups, account settings or real viewing histories in Git or release packages. See [CHANGELOG.md](CHANGELOG.md) for released changes.
