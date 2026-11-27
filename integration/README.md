@@ -13,6 +13,11 @@ These small patches apply to the reviewed local Stream Cinema 2.6.7.1+k19 build.
   `.streamcinema` to the matching files. The season context menu confirms and
   clears the selected season and later seasons. Earlier seasons and Last Seen
   membership remain available. Stop playback before choosing the action.
+- Apply `playback_identity_patch.transform_player`, `.transform_last_seen`
+  and `.transform_streamcinema` to `resources/lib/services/player.py`,
+  `resources/lib/common/last_seen.py` and `resources/lib/streamcinema.py`
+  respectively, after applying the earlier progress and Last Seen patches.
+  Restart Kodi to load the Stream Cinema changes with SC Profile Sync 0.1.7.
 - Apply `patch_upnext_settings.settings` to the reviewed Stream Cinema settings.
   The shortcut opens Up Next's own settings and is hidden when it is unavailable.
 - Apply `patch_root_access.transform` to `resources/lib/streamcinema.py` after

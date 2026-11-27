@@ -1,5 +1,33 @@
 from integration.sc_last_seen import PlaybackTracker, save, target
+from integration.playback_identity_patch import transform_last_seen, unfinished_episode
 from resources.lib.profile import apply_rows
+from resources.lib.sc_browse import most_recent_episode
+
+
+def test_direct_episode_without_category_still_appears_in_last_seen():
+    from inspect import getsource
+    from integration import sc_last_seen
+
+    scope = {}
+    exec(transform_last_seen(getsource(sc_last_seen)), scope)
+    episode = {'id': '42', 'info': {'season': 6, 'episode': 14}}
+    assert scope['target'](episode, 42) == ('lasts', '42')
+    assert scope['target'](episode, 42, True) == ('p-lasts', '42')
+    assert scope['target'](episode, 43) is None
+    assert scope['target'](dict(episode, lid='unknown'), 42) is None
+    assert scope['target']({'id': '42'}, 42) is None
+
+
+def test_autoplay_uses_a_newer_unfinished_episode_in_the_same_show():
+    data = {'last_ep': '6x8', 'last_played:6:8': '2026-11-27 12:00:00',
+            'last_played:6:14': '2026-11-27 13:37:53', 'watched:6:14': 107}
+    assert unfinished_episode(data, most_recent_episode) == (6, 14)
+
+    # A completed newer episode or an invalid position is not resumable.
+    data['last_played:6:15'] = '2026-11-27 14:00:00'
+    assert unfinished_episode(data, most_recent_episode) is None
+    data['watched:6:15'] = 'NaN'
+    assert unfinished_episode(data, most_recent_episode) is None
 
 
 def test_real_playback_registers_after_ten_seconds_and_only_once():
